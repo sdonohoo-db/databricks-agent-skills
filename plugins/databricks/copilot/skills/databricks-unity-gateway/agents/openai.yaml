@@ -1,0 +1,7 @@
+interface:
+  display_name: "Databricks Unity Gateway"
+  short_description: "Unity Catalog AI Gateway services, managed through the `databricks ai-gateway` CLI command group."
+  icon_small: "./assets/databricks.svg"
+  icon_large: "./assets/databricks.png"
+  brand_color: "#FF3621"
+  default_prompt: "Use $databricks-unity-gateway for unity catalog ai gateway services, managed through the `databricks ai-gateway` cli command group."

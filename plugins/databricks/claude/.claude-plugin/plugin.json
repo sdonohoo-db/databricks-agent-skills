@@ -17,6 +17,7 @@
     "app-design",
     "lakebase",
     "model-serving",
+    "unity-gateway",
     "jobs",
     "pipelines",
     "dabs",

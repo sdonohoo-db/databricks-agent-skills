@@ -128,6 +128,65 @@ class GeneratedPluginsTest(unittest.TestCase):
         self.assertNotIn("hooks", skills.build_claude_plugin(self.meta))
 
 
+class UnityGatewaySkillWiringTest(unittest.TestCase):
+    """The databricks-unity-gateway skill ships wired up, not half-added.
+
+    check_meta_skill_coverage catches a skill that is on disk but absent from
+    meta (and vice versa) generically; this pins the specific wiring for the
+    UC AI Gateway skill so a bad merge cannot quietly drop it or its keyword.
+    """
+
+    _NAME = "databricks-unity-gateway"
+
+    def setUp(self):
+        self.meta = skills.load_meta(_REPO)
+
+    def test_in_meta_skills_map_with_keyword(self):
+        self.assertEqual(
+            self.meta["skills"].get(self._NAME), {"keyword": "unity-gateway"}
+        )
+        self.assertIn("unity-gateway", skills.build_keywords(self.meta))
+
+    def test_skill_md_frontmatter(self):
+        frontmatter = skills._read_frontmatter(
+            _REPO / "skills" / self._NAME / "SKILL.md"
+        )
+        self.assertIsNotNone(frontmatter, "SKILL.md has no frontmatter block")
+        self.assertIn(f"name: {self._NAME}", frontmatter)
+        self.assertIn("description:", frontmatter)
+        # Phase 0 is a scaffold: the version stays pinned at 0.1.0 until a phase
+        # ships real content, so a bump here should be a deliberate edit.
+        self.assertIn('version: "0.1.0"', frontmatter)
+        # parent: databricks-core is what makes the routing row mandatory --
+        # see RoutingCoverageTest.test_unity_gateway_has_routing_row.
+        self.assertEqual(
+            skills._skill_parent(_REPO / "skills" / self._NAME), "databricks-core"
+        )
+
+    def test_compatibility_marks_beta_and_rest_fallback(self):
+        # Two load-bearing scaffold properties. The ai-gateway group is Beta, so
+        # the skill must not read as stable, and it must offer the REST fallback
+        # for a CLI that predates the group -- without those the scaffold implies
+        # a settled CLI surface it has not verified. Asserted against the
+        # compatibility value itself, not the whole frontmatter, so a stray
+        # "Beta" in the description cannot satisfy this.
+        frontmatter = skills._read_frontmatter(
+            _REPO / "skills" / self._NAME / "SKILL.md"
+        )
+        compatibility = next(
+            (
+                line
+                for line in frontmatter.splitlines()
+                if line.startswith("compatibility:")
+            ),
+            None,
+        )
+        self.assertIsNotNone(compatibility, "SKILL.md has no compatibility line")
+        self.assertIn("Beta", compatibility)
+        self.assertIn("databricks api", compatibility)
+        self.assertIn("/api/2.1/unity-catalog/", compatibility)
+
+
 class MetaSkillCoverageTest(unittest.TestCase):
     def _make_skill(self, root: Path, name: str) -> None:
         skill_dir = root / "skills" / name

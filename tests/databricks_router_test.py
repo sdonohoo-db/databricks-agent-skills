@@ -63,6 +63,17 @@ class CheckPromptTest(unittest.TestCase):
         # One-word "autoloader" (PHP/composer style) must not match.
         self.assertSkips("fix the php autoloader config")
 
+    def test_unity_gateway_routes(self):
+        # "unity gateway" is AMBIGUOUS (the bare phrase is not Databricks-only),
+        # so it routes on its own but stays suppressed alongside another platform.
+        self.assertRoutes("create a unity gateway model service")
+        self.assertRoutes("list my Unity Gateway mcp services")
+        # The third service kind. It routes on the "unity gateway" mention, not
+        # on "model provider service" or "ai-gateway" -- neither is a pattern, so
+        # each case here pairs the service phrasing with the product name.
+        self.assertRoutes("create a model provider service in unity gateway")
+        self.assertSkips("compare unity gateway with a bigquery setup")
+
     def test_ambiguous_routes_without_alternative_platform(self):
         for p in [
             "set up a model serving endpoint",

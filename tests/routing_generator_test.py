@@ -89,6 +89,23 @@ class RoutingCoverageTest(unittest.TestCase):
     def test_coverage_clean(self):
         self.assertEqual(skills.check_routing_coverage(_REPO, self.meta), [])
 
+    def test_unity_gateway_has_routing_row(self):
+        # databricks-unity-gateway declares parent: databricks-core, so
+        # check_routing_coverage requires a table row for it. Pin the row and its
+        # presence in both rendered tables explicitly, so dropping either the row
+        # or the skill's routing names a single failing test.
+        rows = [
+            row
+            for row in self.meta["routing"]["table"]
+            if row["skill"] == "databricks-unity-gateway"
+        ]
+        self.assertEqual(len(rows), 1, "expected exactly one routing row")
+        self.assertIn("ai-gateway", rows[0]["label"])
+        self.assertIn(
+            "databricks-unity-gateway", skills.render_routing_instruction(self.meta)
+        )
+        self.assertIn("databricks-unity-gateway", skills.render_routing_rule(self.meta))
+
     def test_required_skills_in_both_rendered_tables(self):
         instruction = skills.render_routing_instruction(self.meta)
         rule = skills.render_routing_rule(self.meta)

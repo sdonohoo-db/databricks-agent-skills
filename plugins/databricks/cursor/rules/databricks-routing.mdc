@@ -13,6 +13,7 @@ that matches the request:
 - Apps / AppKit -> databricks-apps
 - Asset Bundles / DABs / databricks.yml -> databricks-dabs
 - Model Serving / endpoints -> databricks-model-serving
+- Unity Gateway / UC model services, MCP services & model provider services (ai-gateway) -> databricks-unity-gateway
 - Lakebase / Postgres -> databricks-lakebase
 - Vector Search / RAG -> databricks-vector-search
 - Classic-to-serverless migration -> databricks-serverless-migration
