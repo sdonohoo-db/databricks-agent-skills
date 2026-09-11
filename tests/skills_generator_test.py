@@ -10,6 +10,7 @@ target's output. Stdlib-only; run with:
 """
 import importlib.util
 import json
+import re
 import shutil
 import tempfile
 import unittest
@@ -154,9 +155,10 @@ class UnityGatewaySkillWiringTest(unittest.TestCase):
         self.assertIsNotNone(frontmatter, "SKILL.md has no frontmatter block")
         self.assertIn(f"name: {self._NAME}", frontmatter)
         self.assertIn("description:", frontmatter)
-        # Phase 0 is a scaffold: the version stays pinned at 0.1.0 until a phase
-        # ships real content, so a bump here should be a deliberate edit.
-        self.assertIn('version: "0.1.0"', frontmatter)
+        # Phase A shipped the first real content (model service CRUD) and bumped
+        # 0.1.0 -> 0.2.0. The version stays pinned here so a bump is always a
+        # deliberate edit landing alongside the content it describes.
+        self.assertIn('version: "0.2.0"', frontmatter)
         # parent: databricks-core is what makes the routing row mandatory --
         # see RoutingCoverageTest.test_unity_gateway_has_routing_row.
         self.assertEqual(
@@ -185,6 +187,266 @@ class UnityGatewaySkillWiringTest(unittest.TestCase):
         self.assertIn("Beta", compatibility)
         self.assertIn("databricks api", compatibility)
         self.assertIn("/api/2.1/unity-catalog/", compatibility)
+
+
+class UnityGatewayModelServiceCrudTest(unittest.TestCase):
+    """Phase A content invariants: model service CRUD.
+
+    These commands and name formats were verified against pinned upstream
+    sources (databricks CLI cmd/workspace/ai-gateway/ai-gateway.go and
+    databricks-sdk-go service/catalog), NOT against a live CLI -- the shipped
+    v1.7.0 has no `ai-gateway` group. That makes them exactly the kind of fact a
+    later edit can garble without anyone noticing, so each load-bearing one gets
+    an assertion here. Content is read from the skill files rather than
+    regenerated, so these fail on a bad hand-edit even when generation is clean.
+    """
+
+    _NAME = "databricks-unity-gateway"
+
+    # The `<verb>-model-service(s)` CLI surface. Splitting create/get/delete
+    # (singular) from list (plural) keeps a typo'd suffix from passing.
+    _VERBS = (
+        "create-model-service",
+        "get-model-service",
+        "list-model-services",
+        "update-model-service",
+        "delete-model-service",
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        skill_dir = _REPO / "skills" / cls._NAME
+        cls.skill_md = (skill_dir / "SKILL.md").read_text()
+        # The detailed payloads may live either inline in SKILL.md or in the
+        # references file; assert against the concatenation so a future split or
+        # re-merge does not break these tests for the wrong reason.
+        reference = skill_dir / "references" / "model-service-crud.md"
+        cls.reference_md = reference.read_text() if reference.exists() else ""
+        cls.combined = cls.skill_md + "\n" + cls.reference_md
+
+    def test_crud_section_exists(self):
+        self.assertIn("## Model services", self.skill_md)
+
+    def test_all_five_verbs_documented(self):
+        # Every CRUD verb must appear in SKILL.md itself, not only in the
+        # reference file -- the overview is what an agent reads first.
+        for verb in self._VERBS:
+            with self.subTest(verb=verb):
+                self.assertIn(verb, self.skill_md)
+
+    def test_parent_uses_schemas_prefix(self):
+        # PARENT / --parent take the typed `schemas/{catalog}.{schema}` form.
+        self.assertIn("schemas/<CATALOG>.<SCHEMA>", self.skill_md)
+        self.assertIn("--parent schemas/<CATALOG>.<SCHEMA>", self.skill_md)
+
+    def test_get_update_delete_use_model_services_prefix(self):
+        # NAME is `model-services/{catalog}.{schema}.{name}`, NOT the bare
+        # three-level name. Assert the typed form is the one shown for each of
+        # the three name-taking verbs.
+        typed = "model-services/<CATALOG>.<SCHEMA>.<SERVICE>"
+        self.assertIn(typed, self.skill_md)
+        for verb in ("get-model-service", "update-model-service", "delete-model-service"):
+            with self.subTest(verb=verb):
+                # The typed NAME must appear in the same command invocation as
+                # the verb (allowing a line continuation between them).
+                self.assertRegex(
+                    self.skill_md,
+                    rf"{re.escape(verb)}\s*(?:\\\s*)?\n?\s*{re.escape(typed)}",
+                    f"{verb} does not show the typed model-services/ NAME form",
+                )
+
+    def test_bare_vs_typed_name_gotcha_called_out(self):
+        # The grants securable name is the BARE three-level name while
+        # ai-gateway wants the typed form; conflating them is the documented
+        # top gotcha, so the contrast must survive edits.
+        self.assertIn("grants get model_service <CATALOG>.<SCHEMA>.<SERVICE>", self.skill_md)
+        self.assertNotIn(
+            "grants get model_service model-services/",
+            self.combined,
+            "grants must take the BARE name, never the typed model-services/ form",
+        )
+
+    def test_create_documents_paygo_destination_type(self):
+        # The anchor example's destination_type enum value, verbatim.
+        self.assertIn(
+            "DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL", self.skill_md
+        )
+        # ...paired with the pay_per_token_config variant it selects and the
+        # typed `models/` UC model name.
+        self.assertIn("pay_per_token_config", self.skill_md)
+        self.assertIn("models/system.ai.", self.skill_md)
+
+    def test_create_config_is_required_and_has_no_flag(self):
+        # `config` is required on create and there is NO --config flag; it must
+        # go through --json. Documenting a --config flag would be wrong.
+        self.assertNotIn("--config ", self.combined)
+        self.assertRegex(self.skill_md, r"no `--config` flag")
+
+    def test_update_mask_is_positional(self):
+        # UPDATE_MASK is the second POSITIONAL arg; there is no --update-mask
+        # flag. The prose must say so, and -- the half that actually catches a
+        # bad example -- no runnable snippet may pass it as a flag. Checked
+        # against the fenced code blocks rather than the raw text, since the
+        # prose necessarily mentions `--update-mask` to deny it exists.
+        self.assertIn("update-model-service NAME UPDATE_MASK", self.combined)
+        self.assertIn("no `--update-mask` flag", self.combined)
+        for block in self._code_blocks(self.combined):
+            self.assertNotIn(
+                "--update-mask",
+                block,
+                "a snippet passes --update-mask; UPDATE_MASK is positional",
+            )
+
+    @staticmethod
+    def _code_blocks(text: str) -> list[str]:
+        # Fenced blocks only -- the runnable commands, as distinct from prose
+        # that may name a flag in order to say it does not exist.
+        return re.findall(r"^```[^\n]*\n(.*?)^```", text, re.MULTILINE | re.DOTALL)
+
+    def test_code_blocks_use_correct_name_forms(self):
+        # No runnable snippet may pass a bare three-level name to a verb that
+        # requires the typed model-services/ form. This is the invariant a
+        # copy-paste reader actually depends on.
+        for block in self._code_blocks(self.combined):
+            for verb in ("get-model-service", "update-model-service", "delete-model-service"):
+                for match in re.finditer(
+                    rf"{re.escape(verb)}\s*(?:\\\s*\n\s*)?(\S+)", block
+                ):
+                    arg = match.group(1)
+                    # Skip the usage-synopsis form (`... NAME UPDATE_MASK`) and
+                    # shell-substitution contexts.
+                    if arg in ("NAME", "\\") or arg.startswith("$"):
+                        continue
+                    with self.subTest(verb=verb, arg=arg):
+                        self.assertTrue(
+                            arg.startswith("model-services/"),
+                            f"{verb} snippet passes {arg!r}, not a model-services/ name",
+                        )
+
+    def test_unsupported_update_mask_paths_flagged(self):
+        # Wildcard and intermediate paths are rejected by the API; a reader who
+        # tries `*` gets an INVALID_ARGUMENT, so the caveat is load-bearing.
+        self.assertIn("config.routing.destinations", self.skill_md)
+        self.assertRegex(self.skill_md, r"[Ww]ildcard `\*` is \*\*not\*\* supported")
+
+    def test_etag_concurrency_documented(self):
+        self.assertIn("--etag", self.skill_md)
+        self.assertIn("etag", self.skill_md.lower())
+
+    def test_rest_fallback_path_documented(self):
+        # The REST base path, plus the fact that update is PATCH with
+        # update_mask as a query param (verified against the pinned SDK).
+        self.assertIn("/api/2.1/unity-catalog/model-services", self.skill_md)
+        self.assertIn("databricks api patch", self.skill_md)
+        self.assertRegex(self.skill_md, r"update_mask=")
+
+    # --- copy-paste hazards -------------------------------------------------
+    # Each of the five below is a shape that LOOKS plausible but fails against
+    # the real API. Prose is free to discuss them; a fenced snippet must not
+    # contain one, because fenced snippets get copy-pasted verbatim.
+
+    def test_no_snippet_wraps_body_in_model_service_key(self):
+        # --json unmarshals DIRECTLY into the ModelService body. Wrapping it as
+        # {"model_service": ...} is the natural guess from the REST field name
+        # and it silently produces a body with no config.
+        for block in self._code_blocks(self.combined):
+            self.assertNotIn(
+                '"model_service"',
+                block,
+                'a snippet wraps the body as {"model_service": ...}; --json takes '
+                "the ModelService fields directly",
+            )
+
+    def test_rest_paths_use_bare_name_segment(self):
+        # The REST path is /model-services/<C>.<S>.<NAME> -- the typed prefix IS
+        # the path segment, so re-adding it (or a schemas/ segment) 404s.
+        for block in self._code_blocks(self.combined):
+            for line in block.splitlines():
+                if "databricks api" not in line and "/model-services" not in line:
+                    continue
+                with self.subTest(line=line.strip()[:70]):
+                    self.assertNotIn("model-services/model-services/", line)
+                    # A resource path must not carry a schemas/ segment; that
+                    # form only belongs in the ?parent= query param.
+                    self.assertNotRegex(
+                        line,
+                        r"/model-services/schemas/",
+                        "REST resource path must not contain a schemas/ segment",
+                    )
+
+    def test_grants_snippets_use_bare_name(self):
+        # The grants securable name is the BARE three-level name.
+        for block in self._code_blocks(self.combined):
+            for line in block.splitlines():
+                if "grants" not in line or "model_service" not in line:
+                    continue
+                with self.subTest(line=line.strip()[:70]):
+                    self.assertNotIn(
+                        "model-services/",
+                        line,
+                        "grants takes the BARE name, not the typed form",
+                    )
+
+    def test_create_model_service_id_is_a_leaf(self):
+        # MODEL_SERVICE_ID is the leaf name only. Passing a dotted three-level
+        # name or a typed path there is the most likely create-time mistake.
+        found = False
+        for block in self._code_blocks(self.combined):
+            for match in re.finditer(
+                r"create-model-service\s*\\?\s*\n?\s*(schemas/\S+)\s+(\S+)", block
+            ):
+                found = True
+                leaf = match.group(2)
+                with self.subTest(leaf=leaf):
+                    self.assertNotIn("/", leaf, "MODEL_SERVICE_ID must be a leaf name")
+                    self.assertNotIn(".", leaf, "MODEL_SERVICE_ID must be a leaf name")
+        self.assertTrue(found, "no fenced create-model-service example to check")
+
+    def test_view_flag_only_takes_basic_or_full(self):
+        # The CLI enum is exactly [BASIC, FULL]; anything else is rejected.
+        for block in self._code_blocks(self.combined):
+            for match in re.finditer(r"--view[ =]+(\S+)", block):
+                value = match.group(1)
+                with self.subTest(value=value):
+                    self.assertIn(
+                        value,
+                        ("BASIC", "FULL", "BASIC|FULL"),
+                        "--view accepts only BASIC or FULL",
+                    )
+
+    def test_least_privilege_grants_documented(self):
+        # Create-side and invoke-side privileges, and never a blanket grant.
+        for privilege in ("CREATE_SERVICE", "USE_SCHEMA", "USE_CATALOG", "EXECUTE"):
+            with self.subTest(privilege=privilege):
+                self.assertIn(privilege, self.skill_md)
+        self.assertIn("never `ALL PRIVILEGES`", self.skill_md)
+        # ALL_PRIVILEGES may only ever appear as the thing NOT to grant.
+        self.assertNotRegex(self.combined, r'add":\s*\[\s*"ALL_PRIVILEGES')
+
+    def test_reference_link_resolves(self):
+        # If SKILL.md links the detailed reference, the target must exist --
+        # a dead relative link is invisible until a reader follows it.
+        skill_dir = _REPO / "skills" / self._NAME
+        for target in re.findall(r"\]\((references/[^)#]+)\)", self.skill_md):
+            with self.subTest(target=target):
+                self.assertTrue(
+                    (skill_dir / target).is_file(), f"dead link: {target}"
+                )
+
+    def test_later_phases_still_marked_pending(self):
+        # Phase A is CRUD only. MCP services, model provider services, and the
+        # advanced config must stay on the roadmap, not read as shipped.
+        self.assertIn("## Coming in stages", self.skill_md)
+        for pending in ("MCP services", "Model provider services"):
+            with self.subTest(pending=pending):
+                self.assertIn(pending, self.skill_md)
+
+    def test_documentation_safety_placeholders(self):
+        # Repo-wide doc-safety rule: placeholder host and workspace id only.
+        self.assertIn("company-workspace.cloud.databricks.com", self.skill_md)
+        self.assertIn("1111111111111111", self.skill_md)
+        # No real-looking bearer token literals anywhere in the skill.
+        self.assertNotRegex(self.combined, r"\bdap[ip][0-9a-f]{16,}")
 
 
 class MetaSkillCoverageTest(unittest.TestCase):
