@@ -157,9 +157,10 @@ class UnityGatewaySkillWiringTest(unittest.TestCase):
         self.assertIn("description:", frontmatter)
         # Phase A shipped the first real content (model service CRUD) at 0.2.0;
         # 0.2.1 applied the doc-accuracy corrections found by auditing it against
-        # the published guide. The version stays pinned here so a bump is always
-        # a deliberate edit landing alongside the content it describes.
-        self.assertIn('version: "0.2.1"', frontmatter)
+        # the published guide, and 0.2.2 finalized the grants content. The
+        # version stays pinned here so a bump is always a deliberate edit
+        # landing alongside the content it describes.
+        self.assertIn('version: "0.2.2"', frontmatter)
         # parent: databricks-core is what makes the routing row mandatory --
         # see RoutingCoverageTest.test_unity_gateway_has_routing_row.
         self.assertEqual(
@@ -334,6 +335,115 @@ class UnityGatewayModelServiceCrudTest(unittest.TestCase):
         self.assertRegex(
             self.skill_md, r"(?i)share one name namespace|share a single name namespace"
         )
+
+    # --- grants specifics (audited against the grant-access docs) -----------
+
+    def test_rest_permissions_endpoint_documented(self):
+        # Grants go through the UC permissions API, NOT the model-services CRUD
+        # path. Both files must show it, and every fenced example of it must use
+        # the securable type plus the BARE three-level name.
+        path = "/api/2.1/unity-catalog/permissions/model_service/"
+        self.assertIn(path, self.skill_md)
+        self.assertIn(path, self.reference_md)
+        found = False
+        for block in self._code_blocks(self.combined):
+            for match in re.finditer(
+                r"/api/2\.1/unity-catalog/permissions/(\S+)", block
+            ):
+                found = True
+                tail = match.group(1)
+                with self.subTest(tail=tail):
+                    self.assertTrue(
+                        tail.startswith("model_service/"),
+                        "permissions path needs the model_service securable type",
+                    )
+                    name = tail[len("model_service/"):]
+                    self.assertFalse(
+                        name.startswith("model-services/"),
+                        "permissions path takes the BARE name, not the typed form",
+                    )
+        self.assertTrue(found, "no fenced permissions-API example to check")
+
+    def test_system_ai_default_execute_exception(self):
+        # Counterpart to owner-only-by-default: system.ai services grant EXECUTE
+        # to all account users up front, so they are restricted, not granted.
+        self.assertRegex(
+            self.skill_md, r"(?i)all account users can query"
+        )
+        self.assertRegex(self.combined, r"(?i)system\.ai")
+
+    def test_grants_update_authority_documented(self):
+        # Running grants update is not open to any caller.
+        self.assertRegex(
+            self.skill_md, r"(?i)\*\*Changing\*\* grants|Changing grants"
+        )
+        for token in ("MANAGE", "admin"):
+            with self.subTest(token=token):
+                self.assertIn(token, self.skill_md)
+
+    def test_grants_get_all_vs_own_documented(self):
+        # The all-grants-vs-own-grants split is a silent-wrong-answer trap: a
+        # partial list looks like a complete one.
+        self.assertRegex(self.skill_md, r"(?i)only their own")
+        self.assertIn("READ_METADATA", self.skill_md)
+
+    def test_viewing_grants_not_conflated_with_reading_metadata(self):
+        # `databricks grants get` (permissions) and `ai-gateway
+        # get-model-service` / `list-model-services` (the resource) are
+        # different authorizations. Asserted PER FILE: checking the combined
+        # text let either file drop the distinction while the other's wording
+        # kept the assertion green.
+        self.assertRegex(
+            self.skill_md,
+            r"(?i)distinct from `?get-model-service",
+            "SKILL.md must separate viewing grants from reading the resource",
+        )
+        self.assertRegex(
+            self.reference_md,
+            r"(?i)distinct question from reading the \*?service metadata",
+            "the reference must separate viewing grants from reading metadata",
+        )
+
+    def test_no_sql_grant_form_invented(self):
+        # The docs offer no SQL GRANT for model services; inventing one would
+        # send readers to a statement that does not parse.
+        for doc in (self.skill_md, self.reference_md):
+            if not doc:
+                continue
+            with self.subTest():
+                self.assertNotRegex(
+                    doc, r"(?i)GRANT\s+\w+\s+ON\s+(?:MODEL\s+)?SERVICE\b"
+                )
+        self.assertRegex(self.combined, r"(?i)no SQL `?GRANT`? form")
+
+    def test_inference_table_select_and_propagation_noted(self):
+        # Per file, for the same reason as above: SKILL.md states propagation in
+        # its own words and the reference in its own, so assert each rather than
+        # letting one cover for the other.
+        # SKILL.md states propagation twice (a grants bullet and a
+        # troubleshooting row). Require BOTH: with a bare substring check,
+        # deleting the bullet still passed because the row matched.
+        self.assertRegex(
+            self.skill_md,
+            r"- Privilege changes can take \*\*a few minutes to propagate\*\*",
+            "the grants section must carry the propagation caveat",
+        )
+        self.assertRegex(
+            self.skill_md,
+            r"\| Privilege changes take a few minutes to propagate",
+            "the troubleshooting table must carry the propagation row",
+        )
+        self.assertRegex(
+            self.reference_md, r"(?i)[Pp]ropagation is not instant|minutes to take effect"
+        )
+        # Inference-table payload reads need SELECT on the table, in both files.
+        for doc, label in ((self.skill_md, "SKILL.md"), (self.reference_md, "reference")):
+            with self.subTest(doc=label):
+                self.assertRegex(
+                    doc,
+                    r"(?i)`?SELECT`? on (?:that|the) table",
+                    f"{label} must note SELECT on the inference table",
+                )
 
     def test_create_documents_paygo_destination_type(self):
         # The anchor example's destination_type enum value, verbatim.

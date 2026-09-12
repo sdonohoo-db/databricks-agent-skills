@@ -16,7 +16,9 @@ provisioned-throughput destinations) is covered in a later phase.
 >   create with an unwrapped `--json` body, `traffic_percentage` on every destination, the typed
 >   `model-services/...` NAME for update and delete, the `UPDATE_MASK` positional, the REST
 >   `POST`/`PATCH`/`DELETE` paths with `parent` + `model_service_id` + `update_mask` as query
->   params, the create and invoke privileges, ownership-on-create, and the shared namespace.
+>   params, the create and invoke privileges, ownership-on-create, the shared namespace, the
+>   permissions-API grant path, who may change and view grants, the `system.ai` default-access
+>   exception, propagation delay, and the inference-table `SELECT` requirement.
 > - **Derived from the CLI help text and SDK types only** — *not* shown in that guide, so treat
 >   as indicative and confirm against the API reference: the `get` / `list` command examples,
 >   the full update-mask valid-path matrix, `--etag` on update and delete, `--view`, `--parent`,
@@ -303,11 +305,34 @@ Model services use **definer's privileges** — a query is authorized against th
 access to the destinations, not the caller's. A caller with `EXECUTE` on the service therefore
 needs no direct grant on the underlying models.
 
+### Default access
+
+A service you create is owned by you, and **by default you are the only principal who can query
+it** — everyone else needs an explicit `EXECUTE` grant. The **`system.ai` services invert this**:
+all account users hold `EXECUTE` on them out of the box, so restricting one means *removing*
+access (a `DENY` on `EXECUTE` for the `account users` group, or managing privileges on the
+`system.ai` schema) rather than granting it.
+
+### Changing and viewing grants
+
+Two different authorizations, easy to confuse:
+
+| Action | Who may do it |
+|---|---|
+| `grants update` (change grants) | The service's owner, the owner of its catalog or schema, a principal with `MANAGE` on the service, or a metastore admin. Managing a `system.ai` service needs metastore admin or `MANAGE` on `system.ai`. |
+| `grants get` (view grants) | Owners (of the service or its parent catalog/schema), `MANAGE`, `READ_METADATA`, and metastore admins see **all** grants. Any other principal sees **only their own** grants — an incomplete list, not an error. |
+
+Note that viewing *grants* is a distinct question from reading the *service metadata*: the
+`get` / `list` row in the table above governs `ai-gateway get-model-service` and
+`list-model-services`, which read the resource itself. `databricks grants get` reads its
+permissions. A principal can be able to do one and not the other.
+
 ```bash
-# Current grants on the service.
+# Current grants on the service. Shows only YOUR grants unless you own it or
+# hold MANAGE / READ_METADATA (or are a metastore admin).
 databricks grants get model_service <CATALOG>.<SCHEMA>.<SERVICE> --profile <PROFILE>
 
-# Grant invoke rights to a consuming group.
+# Grant invoke rights to a consuming group. Requires ownership, MANAGE, or admin.
 databricks grants update model_service <CATALOG>.<SCHEMA>.<SERVICE> \
   --json '{"changes":[{"principal":"<GROUP>","add":["EXECUTE"]}]}' --profile <PROFILE>
 
@@ -316,9 +341,34 @@ databricks grants update model_service <CATALOG>.<SCHEMA>.<SERVICE> \
   --json '{"changes":[{"principal":"<GROUP>","remove":["EXECUTE"]}]}' --profile <PROFILE>
 ```
 
-Watch the spelling of the create privilege: prose and SQL call it `CREATE SERVICE`, while the
-CLI and API grant enum takes `CREATE_SERVICE`. General `GRANT`/`REVOKE` mechanics, inheritance,
-and ownership transfer belong to the
+Grant changes go through the Unity Catalog **permissions** API, so the REST equivalents use a
+different path from the CRUD calls — note the securable type `model_service` and the **bare**
+three-level name, matching the CLI rather than the typed `model-services/…` CRUD paths:
+
+```bash
+# Read grants (GET).
+databricks api get \
+  /api/2.1/unity-catalog/permissions/model_service/<CATALOG>.<SCHEMA>.<SERVICE> \
+  --profile <PROFILE>
+
+# Change grants (PATCH), same changes payload as the CLI.
+databricks api patch \
+  /api/2.1/unity-catalog/permissions/model_service/<CATALOG>.<SCHEMA>.<SERVICE> \
+  --json '{"changes":[{"principal":"<GROUP>","add":["EXECUTE"]}]}' --profile <PROFILE>
+```
+
+Two more things to expect:
+
+- **Propagation is not instant.** Privilege changes can take a few minutes to take effect on
+  query requests; until then requests may still be authorized under the previous privileges.
+- **Inference-table payloads need their own grant.** If the service logs to an inference table,
+  reading those logged requests and responses also requires `SELECT` on that table — the service
+  grant alone does not cover it. Configuring inference tables is a later phase.
+
+There is **no SQL `GRANT` form for a model service** — use the CLI, the permissions API, or
+Catalog Explorer. Watch the spelling of the create privilege: prose and SQL call it
+`CREATE SERVICE`, while the CLI and API grant enum takes `CREATE_SERVICE`. General
+`GRANT`/`REVOKE` mechanics, inheritance, and ownership transfer belong to the
 [databricks-unity-catalog](../../databricks-unity-catalog/SKILL.md) skill.
 
 ## REST fallback
