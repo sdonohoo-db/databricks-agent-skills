@@ -3,7 +3,7 @@ name: databricks-unity-gateway
 description: "Unity Catalog AI Gateway services, managed through the `databricks ai-gateway` CLI command group. Use when asked to work with model services, MCP services, or model provider services — Unity Catalog securables named catalog.schema.name and backed by /api/2.1/unity-catalog/ — including creating, listing, inspecting, updating, and deleting them. NOT for: legacy per-endpoint AI Gateway configuration on a serving endpoint (serving-endpoints put-ai-gateway) or serving-endpoint lifecycle, traffic routing, and querying — use databricks-model-serving. NOT for: generic Unity Catalog privilege mechanics such as GRANT/REVOKE, ownership, external locations, or system tables — use databricks-unity-catalog."
 compatibility: "Requires a databricks CLI that ships the `ai-gateway` command group (Beta; the group and its flags may change). Confirm with `databricks ai-gateway -h`; when the installed CLI lacks the group, use the `databricks api` REST fallback against /api/2.1/unity-catalog/."
 metadata:
-  version: "0.2.2"
+  version: "0.2.3"
 parent: databricks-core
 ---
 
@@ -124,8 +124,9 @@ databricks ai-gateway create-model-service \
   do **not** appear in the body. Optional body fields: `comment`, `owner` (also available as
   `--comment` / `--owner` flags).
 - **Every destination takes a `traffic_percentage`, and the values across destinations must
-  sum to 100** — so a single destination carries `100`. Splitting traffic across several
-  destinations is a later phase; the percentage itself is required either way.
+  sum to 100** (the sum rule is stated by the routing documentation) — so a single destination
+  carries `100`. Splitting traffic across several destinations is a later phase; the percentage
+  itself is required either way.
 - The model id above is an **example**. New foundation models land regularly — discover
   what's available in `system.ai` rather than hard-coding a name (see
   `databricks-model-serving`'s Foundation Model API section for the runtime-list snippet).
@@ -178,7 +179,7 @@ Grant the narrowest privilege that works; **never `ALL PRIVILEGES`**.
 
 | To… | Needs |
 |---|---|
-| **Create** a model service | `USE_CATALOG` + `USE_SCHEMA` + `CREATE_SERVICE` on the catalog and schema you create it in, plus `EXECUTE` on **each model the service routes to**. |
+| **Create** a model service | `USE_CATALOG` on the **catalog**, `USE_SCHEMA` + `CREATE_SERVICE` on the **schema** you create it in, plus `EXECUTE` on **each model the service routes to**. |
 | **Invoke** the finished service | `USE_CATALOG` + `USE_SCHEMA` + `EXECUTE` on the model service. |
 | **Read** metadata (`get` / `list`) | `USE_CATALOG` + `USE_SCHEMA`, plus ownership or a read-capable privilege on the service — the Beta help lists `EXECUTE` / `READ_METADATA` / `MANAGE`. |
 | **Update** / **delete** | `USE_CATALOG` + `USE_SCHEMA`, plus ownership or `MANAGE` on the service. |
@@ -220,13 +221,15 @@ databricks api patch \
 Who may run these is its own question, separate from the metadata rows above:
 
 - **Changing** grants (`grants update`) needs ownership of the service or its parent
-  catalog/schema, `MANAGE` on the service, or admin authority. For a `system.ai` service that
-  means metastore admin or `MANAGE` on `system.ai`.
+  catalog/schema, `MANAGE` on the service, or admin authority. A `system.ai` service typically
+  requires elevated authority (the governance docs name metastore admin or `MANAGE` on
+  `system.ai`) — confirm against the Unity Catalog docs for your workspace.
 - **Viewing** grants (`grants get`) returns *all* grants to owners, `MANAGE`, `READ_METADATA`,
   and metastore admins; every other principal sees **only their own** — a short list here is not
   necessarily the whole picture. This is distinct from `get-model-service` / `list-model-services`,
   which read the resource rather than its permissions.
-- Privilege changes can take **a few minutes to propagate** to query requests.
+- Privilege changes may take **a short time to propagate** to query requests — general Unity
+  Catalog behavior, so retry before debugging a fresh grant.
 - Reading a service's inference-table payload logs additionally needs `SELECT` on that table
   (inference-table setup is a later phase).
 
@@ -287,7 +290,7 @@ Until a section lands, use [CLI Discovery](#cli-discovery--always-do-this-first)
 | Create rejected over traffic percentages | Every destination needs a `traffic_percentage` and they must sum to 100 — set `100` on a lone destination. |
 | Create rejected as a name already in use | Model services and model provider services share one namespace per schema. Pick another leaf name or list both kinds in the schema. |
 | Others get `PERMISSION_DENIED` on a service you just made | Expected: you are the owner and initially the only principal who can query it. Grant `EXECUTE` (plus `USE_CATALOG` + `USE_SCHEMA`). |
-| `EXECUTE` granted but the caller is still denied | Privilege changes take a few minutes to propagate; retry before debugging further. |
+| `EXECUTE` granted but the caller is still denied | Privilege changes take a short time to propagate; retry before debugging further. |
 | `grants get` shows fewer grants than expected | Only owners / `MANAGE` / `READ_METADATA` / metastore admins see all grants; everyone else sees just their own. |
 | `PERMISSION_DENIED` running `grants update` | Changing grants needs ownership (of the service or its parent catalog/schema), `MANAGE`, or admin authority. |
 | Etag mismatch on update or delete | Someone else modified the service since your read. Re-run `get-model-service`, re-apply your change, and pass the fresh `--etag`. |

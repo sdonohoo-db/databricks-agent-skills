@@ -10,19 +10,24 @@ The `ai-gateway` group is **Beta** — every signature here should be confirmed 
 configuration (traffic splitting, fallbacks, rate limits, inference tables, external and
 provisioned-throughput destinations) is covered in a later phase.
 
-> **Provenance.** Two tiers, because they carry different confidence:
+> **Provenance.** Two tiers, because they carry different confidence. Within the first tier the
+> claims come from *different* pages, so the page is named where it matters:
 >
-> - **Corroborated by the published guide** ("Create and manage model APIs"): the two-positional
->   create with an unwrapped `--json` body, `traffic_percentage` on every destination, the typed
->   `model-services/...` NAME for update and delete, the `UPDATE_MASK` positional, the REST
->   `POST`/`PATCH`/`DELETE` paths with `parent` + `model_service_id` + `update_mask` as query
->   params, the create and invoke privileges, ownership-on-create, the shared namespace, the
->   permissions-API grant path, who may change and view grants, the `system.ai` default-access
->   exception, propagation delay, and the inference-table `SELECT` requirement.
-> - **Derived from the CLI help text and SDK types only** — *not* shown in that guide, so treat
->   as indicative and confirm against the API reference: the `get` / `list` command examples,
->   the full update-mask valid-path matrix, `--etag` on update and delete, `--view`, `--parent`,
->   pagination, the per-component length cap, and response-field lists.
+> - **Corroborated by the published documentation.** From *Create and manage model APIs*: the
+>   two-positional create with an unwrapped `--json` body, `traffic_percentage` on every
+>   destination, the typed `model-services/...` NAME for update and delete, the `UPDATE_MASK`
+>   positional, the REST `POST`/`PATCH`/`DELETE` paths with `parent` + `model_service_id` +
+>   `update_mask` as query params, the create and invoke privileges, ownership-on-create, the
+>   shared namespace, the permissions-API grant path, and the inference-table `SELECT` and
+>   `CREATE TABLE` requirements. From *Discover and govern access to model APIs*: who may manage
+>   a service, and propagation delay. From the *Model APIs* overview: the privilege table and the
+>   `system.ai` default-access exception. From *Configure routing and fallbacks*: the rule that
+>   traffic percentages must sum to 100. From the Unity Catalog *Manage privileges* page: who may
+>   grant, and who sees all grants versus only their own.
+> - **Derived from the CLI help text and SDK types only** — *not* shown in any of those pages, so
+>   treat as indicative and confirm against the API reference: the `get` / `list` command
+>   examples, the full update-mask valid-path matrix, `--etag` on update and delete, `--view`,
+>   `--parent`, pagination, the per-component length cap, and response-field lists.
 >
 > Nothing here was observed on a live workspace. Where this file and the
 > `/api/2.1/unity-catalog/` API reference disagree, believe the API reference.
@@ -92,10 +97,11 @@ Minimal valid Paygo body:
 - `config.routing.destinations` requires at least one entry on create, and the SDK documents
   an upper bound of 10. Treat the bound as indicative and confirm it in the API reference
   before designing around it.
-- **`traffic_percentage` is set on every destination, and the values must sum to 100.** With a
-  single destination that means `100`, as in the body above. Distributing traffic across
-  several destinations (and fallbacks, which are configured separately and do not take a
-  traffic split) is a later phase.
+- **`traffic_percentage` is set on every destination**, as in the body above and in every
+  official create example. The rule that the values **must sum to 100** comes from the routing
+  and fallbacks documentation rather than the create page, so with a single destination that
+  means `100`. Distributing traffic across several destinations (and fallbacks, which are
+  configured separately and do not take a traffic split) is a later phase.
 - Per destination, `name` (the routing label) and `destination_type` are required. The
   `destination_type` selects which config variant is read — `DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL`
   reads `pay_per_token_config`. The other two variants,
@@ -284,7 +290,7 @@ form used by `ai-gateway`.
 
 | Goal | Privileges |
 |---|---|
-| Create a model service | `USE_CATALOG` + `USE_SCHEMA` + `CREATE_SERVICE` on the catalog and schema you create it in, plus `EXECUTE` on each model the service routes to |
+| Create a model service | `USE_CATALOG` on the **catalog**, `USE_SCHEMA` + `CREATE_SERVICE` on the **schema** you create it in, plus `EXECUTE` on each model the service routes to |
 | Invoke the service | `USE_CATALOG` + `USE_SCHEMA` + `EXECUTE` on the service |
 | `get` / `list` | Owner, or `EXECUTE` / `READ_METADATA` / `MANAGE` on the service, plus `USE_CATALOG` + `USE_SCHEMA` |
 | `update` / `delete` | Owner, or `MANAGE` on the service, plus `USE_CATALOG` + `USE_SCHEMA` |
@@ -292,8 +298,8 @@ form used by `ai-gateway`.
 A routed **model** destination needs only `EXECUTE` — do not also grant `USE_CATALOG` /
 `USE_SCHEMA` on that model's parents for creation to work. (A routed **model provider service**
 destination does additionally require `USE_CATALOG` + `USE_SCHEMA`; that destination type is a
-later phase. Enabling inference logging additionally needs `CREATE_TABLE` on the target
-catalog/schema — also a later phase.)
+later phase, as is enabling inference logging, which carries its own table-creation privilege
+requirement on the target catalog and schema.)
 
 The create and invoke rows come from the published guide. The `get` / `list` / `update` /
 `delete` rows restate the per-subcommand CLI help instead: the parent `USE_CATALOG` +
@@ -309,9 +315,12 @@ needs no direct grant on the underlying models.
 
 A service you create is owned by you, and **by default you are the only principal who can query
 it** — everyone else needs an explicit `EXECUTE` grant. The **`system.ai` services invert this**:
-all account users hold `EXECUTE` on them out of the box, so restricting one means *removing*
-access (a `DENY` on `EXECUTE` for the `account users` group, or managing privileges on the
-`system.ai` schema) rather than granting it.
+all account users hold `EXECUTE` on them out of the box, so tightening access there means
+*removing* it rather than granting it. That is usually done at the schema level, by managing
+`USE_SCHEMA` / `EXECUTE` on `system.ai` so the change covers current and future services; the
+documentation also describes denying `EXECUTE` to the `account users` group on a single service
+through Catalog Explorer. Check the Unity Catalog privileges documentation for the exact
+mechanism and whether it is available on your CLI or API version before scripting it.
 
 ### Changing and viewing grants
 
@@ -319,7 +328,7 @@ Two different authorizations, easy to confuse:
 
 | Action | Who may do it |
 |---|---|
-| `grants update` (change grants) | The service's owner, the owner of its catalog or schema, a principal with `MANAGE` on the service, or a metastore admin. Managing a `system.ai` service needs metastore admin or `MANAGE` on `system.ai`. |
+| `grants update` (change grants) | The service's owner, the owner of its catalog or schema, a principal with `MANAGE` on the service, or a metastore admin. A `system.ai` service typically needs elevated authority — the governance page names metastore admin or `MANAGE` on `system.ai` — so confirm in the Unity Catalog documentation for your workspace. |
 | `grants get` (view grants) | Owners (of the service or its parent catalog/schema), `MANAGE`, `READ_METADATA`, and metastore admins see **all** grants. Any other principal sees **only their own** grants — an incomplete list, not an error. |
 
 Note that viewing *grants* is a distinct question from reading the *service metadata*: the
@@ -359,11 +368,14 @@ databricks api patch \
 
 Two more things to expect:
 
-- **Propagation is not instant.** Privilege changes can take a few minutes to take effect on
-  query requests; until then requests may still be authorized under the previous privileges.
+- **Propagation is not instant.** Privilege changes may take a short time to take effect on query
+  requests; until then requests may still be authorized under the previous privileges. This is
+  general Unity Catalog behavior described on the governance page, not a model-service-specific
+  guarantee, so treat the delay as "retry before debugging" rather than a bounded interval.
 - **Inference-table payloads need their own grant.** If the service logs to an inference table,
-  reading those logged requests and responses also requires `SELECT` on that table — the service
-  grant alone does not cover it. Configuring inference tables is a later phase.
+  the documentation states that reading those logged requests and responses also requires
+  `SELECT` on that table — the service grant alone does not cover it. Configuring inference
+  tables, including the table-creation privileges needed to enable logging, is a later phase.
 
 There is **no SQL `GRANT` form for a model service** — use the CLI, the permissions API, or
 Catalog Explorer. Watch the spelling of the create privilege: prose and SQL call it

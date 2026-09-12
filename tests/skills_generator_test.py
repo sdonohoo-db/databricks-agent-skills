@@ -157,10 +157,11 @@ class UnityGatewaySkillWiringTest(unittest.TestCase):
         self.assertIn("description:", frontmatter)
         # Phase A shipped the first real content (model service CRUD) at 0.2.0;
         # 0.2.1 applied the doc-accuracy corrections found by auditing it against
-        # the published guide, and 0.2.2 finalized the grants content. The
-        # version stays pinned here so a bump is always a deliberate edit
-        # landing alongside the content it describes.
-        self.assertIn('version: "0.2.2"', frontmatter)
+        # the published guide, 0.2.2 finalized the grants content, and 0.2.3
+        # polished hedging and provenance. The version stays pinned here so a
+        # bump is always a deliberate edit landing alongside the content it
+        # describes.
+        self.assertIn('version: "0.2.3"', frontmatter)
         # parent: databricks-core is what makes the routing row mandatory --
         # see RoutingCoverageTest.test_unity_gateway_has_routing_row.
         self.assertEqual(
@@ -317,6 +318,44 @@ class UnityGatewayModelServiceCrudTest(unittest.TestCase):
             self.skill_md, r"EXECUTE`? on \*\*each model the service routes to"
         )
 
+    def test_create_privilege_placement_is_unambiguous(self):
+        # The privilege SET is confirmed; what needed tightening is WHICH object
+        # each sits on -- USE_CATALOG on the catalog, USE_SCHEMA +
+        # CREATE_SERVICE on the schema. The old "on the catalog and schema"
+        # phrasing could be read as all three on both.
+        for doc, label in ((self.skill_md, "SKILL.md"), (self.reference_md, "reference")):
+            with self.subTest(doc=label):
+                self.assertRegex(
+                    doc,
+                    r"`USE_CATALOG` on the \*\*catalog\*\*, `USE_SCHEMA` \+ `CREATE_SERVICE` on the \*\*schema\*\*",
+                    f"{label} must place each create privilege on its own object",
+                )
+                self.assertNotRegex(
+                    doc,
+                    r"`USE_CATALOG` \+ `USE_SCHEMA` \+ `CREATE_SERVICE` on the catalog and schema",
+                    f"{label} still uses the ambiguous placement wording",
+                )
+
+    def test_advanced_phase_claims_not_asserted_as_basic_facts(self):
+        # Inference-logging table-creation privileges are an advanced-phase
+        # detail. Naming the exact CREATE_TABLE privilege inline read as a
+        # verified basic-CRUD fact; it is now deferred to that phase.
+        self.assertNotIn("CREATE_TABLE", self.combined)
+        # The requirement itself is still signposted, just not asserted.
+        self.assertRegex(self.combined, r"(?i)table-creation privilege")
+
+    def test_system_ai_restriction_mechanism_is_hedged(self):
+        # The high-level direction (restrict rather than grant) is doc-confirmed;
+        # the precise DENY mechanism is a Catalog Explorer flow, so it must be
+        # attributed and pointed at the UC docs rather than stated as the
+        # scriptable recipe.
+        self.assertRegex(self.reference_md, r"(?i)removing\* it rather than granting it|removing.{0,20}rather than granting")
+        self.assertRegex(
+            self.reference_md,
+            r"(?i)[Cc]heck the Unity Catalog privileges documentation for the exact\s+mechanism",
+            "the system.ai restriction mechanism must point at the UC docs",
+        )
+
     def test_create_service_privilege_stated_plainly(self):
         # The privilege is confirmed by the guide, so the old "if your workspace
         # rejects it as an unknown privilege" hedge must be gone, replaced by the
@@ -422,19 +461,29 @@ class UnityGatewayModelServiceCrudTest(unittest.TestCase):
         # letting one cover for the other.
         # SKILL.md states propagation twice (a grants bullet and a
         # troubleshooting row). Require BOTH: with a bare substring check,
-        # deleting the bullet still passed because the row matched.
+        # deleting the bullet still passed because the row matched. Matched on
+        # the concept ("take <some> time to propagate") rather than a specific
+        # duration, since the wording is deliberately unbounded -- the docs call
+        # this general UC behavior, not a model-service SLA.
         self.assertRegex(
             self.skill_md,
-            r"- Privilege changes can take \*\*a few minutes to propagate\*\*",
+            r"- Privilege changes may take \*\*a short time to propagate\*\*",
             "the grants section must carry the propagation caveat",
         )
         self.assertRegex(
             self.skill_md,
-            r"\| Privilege changes take a few minutes to propagate",
+            r"\| Privilege changes take a short time to propagate",
             "the troubleshooting table must carry the propagation row",
         )
         self.assertRegex(
-            self.reference_md, r"(?i)[Pp]ropagation is not instant|minutes to take effect"
+            self.reference_md, r"(?i)[Pp]ropagation is not instant|time to take effect"
+        )
+        # No bounded-interval promise anywhere: "a few minutes" reads as a
+        # guarantee the docs do not make.
+        self.assertNotRegex(
+            self.combined,
+            r"(?i)a few minutes to (?:propagate|take effect)",
+            "propagation delay must not be stated as a bounded interval",
         )
         # Inference-table payload reads need SELECT on the table, in both files.
         for doc, label in ((self.skill_md, "SKILL.md"), (self.reference_md, "reference")):
