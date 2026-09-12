@@ -3,7 +3,7 @@ name: databricks-unity-gateway
 description: "Unity Catalog AI Gateway services, managed through the `databricks ai-gateway` CLI command group. Use when asked to work with model services, MCP services, or model provider services — Unity Catalog securables named catalog.schema.name and backed by /api/2.1/unity-catalog/ — including creating, listing, inspecting, updating, and deleting them. NOT for: legacy per-endpoint AI Gateway configuration on a serving endpoint (serving-endpoints put-ai-gateway) or serving-endpoint lifecycle, traffic routing, and querying — use databricks-model-serving. NOT for: generic Unity Catalog privilege mechanics such as GRANT/REVOKE, ownership, external locations, or system tables — use databricks-unity-catalog."
 compatibility: "Requires a databricks CLI that ships the `ai-gateway` command group (Beta; the group and its flags may change). Confirm with `databricks ai-gateway -h`; when the installed CLI lacks the group, use the `databricks api` REST fallback against /api/2.1/unity-catalog/."
 metadata:
-  version: "0.2.0"
+  version: "0.2.1"
 parent: databricks-core
 ---
 
@@ -111,7 +111,8 @@ databricks ai-gateway create-model-service \
           "destination_type": "DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL",
           "pay_per_token_config": {
             "model": "models/system.ai.databricks-meta-llama-3-3-70b-instruct"
-          }
+          },
+          "traffic_percentage": 100
         }]
       }
     }
@@ -122,11 +123,17 @@ databricks ai-gateway create-model-service \
   `parent` and `model_service_id` are query params supplied as the two positionals, so they
   do **not** appear in the body. Optional body fields: `comment`, `owner` (also available as
   `--comment` / `--owner` flags).
+- **Every destination takes a `traffic_percentage`, and the values across destinations must
+  sum to 100** — so a single destination carries `100`. Splitting traffic across several
+  destinations is a later phase; the percentage itself is required either way.
 - The model id above is an **example**. New foundation models land regularly — discover
   what's available in `system.ai` rather than hard-coding a name (see
   `databricks-model-serving`'s Foundation Model API section for the runtime-list snippet).
 - On success the server derives `name` as `model-services/<CATALOG>.<SCHEMA>.my_model_service`
-  and returns an `etag`.
+  and returns an `etag`. **You become the owner, and by default you are the only principal who
+  can query it** — grant `EXECUTE` to let anyone else invoke it (see below).
+- Model services and model provider services **share one name namespace per schema**, so a
+  create fails if a provider service in that schema already uses the name (and vice versa).
 
 ### Read, list, update, delete
 
@@ -169,15 +176,22 @@ Grant the narrowest privilege that works; **never `ALL PRIVILEGES`**.
 
 | To… | Needs |
 |---|---|
-| **Create** a model service | Own the parent schema, **or** `CREATE_SERVICE` + `USE_SCHEMA` on the schema plus `USE_CATALOG` on the catalog. Additionally `USE_CATALOG` + `USE_SCHEMA` + `EXECUTE` on **each referenced UC model** destination. |
+| **Create** a model service | `USE_CATALOG` + `USE_SCHEMA` + `CREATE_SERVICE` on the catalog and schema you create it in, plus `EXECUTE` on **each model the service routes to**. |
 | **Invoke** the finished service | `USE_CATALOG` + `USE_SCHEMA` + `EXECUTE` on the model service. |
 | **Read** metadata (`get` / `list`) | `USE_CATALOG` + `USE_SCHEMA`, plus ownership or a read-capable privilege on the service — the Beta help lists `EXECUTE` / `READ_METADATA` / `MANAGE`. |
 | **Update** / **delete** | `USE_CATALOG` + `USE_SCHEMA`, plus ownership or `MANAGE` on the service. |
 
-The create and invoke rows are the two to get right. For the read/update/delete rows, the
-parent `USE_CATALOG` + `USE_SCHEMA` requirement is stable, but confirm the exact service-level
-privilege names with `databricks ai-gateway <SUBCOMMAND> -h` and the API reference before
-baking them into automation — this is a Beta surface.
+The create row needs only `EXECUTE` on a routed **model** — no `USE_CATALOG`/`USE_SCHEMA` on
+the model's own parents. (A routed **model provider service** destination does additionally
+need `USE_CATALOG` + `USE_SCHEMA`, but those are a later phase.) The create and invoke rows are
+the two to get right; for the read/update/delete rows the parent `USE_CATALOG` + `USE_SCHEMA`
+requirement is stable, but the exact service-level privilege names come from the Beta CLI help
+rather than the published guide, so confirm them with `databricks ai-gateway <SUBCOMMAND> -h`
+and the API reference before baking them into automation.
+
+Model services use **definer's privileges**: a query is evaluated against the *owner's* rights
+on the destinations, so a caller granted `EXECUTE` on the service does not additionally need
+access to the underlying models.
 
 Grant `EXECUTE` to a consuming group — note the **bare** securable name here, contrasted
 with the typed `model-services/…` form the `ai-gateway` commands take:
@@ -191,10 +205,9 @@ databricks grants update model_service <CATALOG>.<SCHEMA>.<SERVICE> \
   --json '{"changes":[{"principal":"<GROUP>","add":["EXECUTE"]}]}' --profile <PROFILE>
 ```
 
-`CREATE_SERVICE` is what the Beta CLI help documents for schema-level creation; if your
-workspace rejects it as an unknown privilege, confirm the accepted spelling with
-`databricks grants get schema <CATALOG>.<SCHEMA>` and the API reference. For `GRANT`/`REVOKE`
-mechanics, inheritance, and ownership transfer in general, use
+Mind the spelling of the create privilege: it is `CREATE SERVICE` in prose and SQL, and
+`CREATE_SERVICE` in the CLI/API grant enum. For `GRANT`/`REVOKE` mechanics, inheritance, and
+ownership transfer in general, use
 **[databricks-unity-catalog](../databricks-unity-catalog/SKILL.md)**.
 
 ### REST fallback
@@ -245,6 +258,9 @@ Until a section lands, use [CLI Discovery](#cli-discovery--always-do-this-first)
 | `INVALID_ARGUMENT` on `get`/`update`/`delete` | `NAME` must be the typed `model-services/<CATALOG>.<SCHEMA>.<SERVICE>`, not the bare three-level name. |
 | `INVALID_ARGUMENT` naming the update mask | Wildcard `*` and intermediate paths (`config.routing`) are unsupported — name a concrete leaf such as `config.routing.destinations`. |
 | Create rejected for a missing `config` | `config` is required on create and there is no `--config` flag; supply it via `--json`. |
+| Create rejected over traffic percentages | Every destination needs a `traffic_percentage` and they must sum to 100 — set `100` on a lone destination. |
+| Create rejected as a name already in use | Model services and model provider services share one namespace per schema. Pick another leaf name or list both kinds in the schema. |
+| Others get `PERMISSION_DENIED` on a service you just made | Expected: you are the owner and initially the only principal who can query it. Grant `EXECUTE` (plus `USE_CATALOG` + `USE_SCHEMA`). |
 | Etag mismatch on update or delete | Someone else modified the service since your read. Re-run `get-model-service`, re-apply your change, and pass the fresh `--etag`. |
 | `PERMISSION_DENIED` on create | Check schema-level create rights **and** `EXECUTE` on each referenced `system.ai` model — the model grant is the one usually missed. |
 | `PERMISSION_DENIED` invoking the service | Caller needs `USE_CATALOG` + `USE_SCHEMA` + `EXECUTE` on the service; grant with the **bare** name via `databricks grants update model_service`. |

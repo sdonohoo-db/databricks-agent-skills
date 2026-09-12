@@ -10,11 +10,20 @@ The `ai-gateway` group is **Beta** — every signature here should be confirmed 
 configuration (traffic splitting, fallbacks, rate limits, inference tables, external and
 provisioned-throughput destinations) is covered in a later phase.
 
-> **Provenance.** Command signatures, argument formats, privilege requirements, and payload
-> field semantics below were taken from the CLI's own help text and the SDK's request/response
-> types, not from a live workspace. Anything *not* stated by those sources is marked as
-> needing confirmation. The `/api/2.1/unity-catalog/` API reference is the authoritative
-> schema; where this file and the API reference disagree, believe the API reference.
+> **Provenance.** Two tiers, because they carry different confidence:
+>
+> - **Corroborated by the published guide** ("Create and manage model APIs"): the two-positional
+>   create with an unwrapped `--json` body, `traffic_percentage` on every destination, the typed
+>   `model-services/...` NAME for update and delete, the `UPDATE_MASK` positional, the REST
+>   `POST`/`PATCH`/`DELETE` paths with `parent` + `model_service_id` + `update_mask` as query
+>   params, the create and invoke privileges, ownership-on-create, and the shared namespace.
+> - **Derived from the CLI help text and SDK types only** — *not* shown in that guide, so treat
+>   as indicative and confirm against the API reference: the `get` / `list` command examples,
+>   the full update-mask valid-path matrix, `--etag` on update and delete, `--view`, `--parent`,
+>   pagination, the per-component length cap, and response-field lists.
+>
+> Nothing here was observed on a live workspace. Where this file and the
+> `/api/2.1/unity-catalog/` API reference disagree, believe the API reference.
 
 ## Name forms
 
@@ -69,7 +78,8 @@ Minimal valid Paygo body:
           "destination_type": "DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL",
           "pay_per_token_config": {
             "model": "models/system.ai.databricks-meta-llama-3-3-70b-instruct"
-          }
+          },
+          "traffic_percentage": 100
         }
       ]
     }
@@ -80,6 +90,10 @@ Minimal valid Paygo body:
 - `config.routing.destinations` requires at least one entry on create, and the SDK documents
   an upper bound of 10. Treat the bound as indicative and confirm it in the API reference
   before designing around it.
+- **`traffic_percentage` is set on every destination, and the values must sum to 100.** With a
+  single destination that means `100`, as in the body above. Distributing traffic across
+  several destinations (and fallbacks, which are configured separately and do not take a
+  traffic split) is a later phase.
 - Per destination, `name` (the routing label) and `destination_type` are required. The
   `destination_type` selects which config variant is read — `DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL`
   reads `pay_per_token_config`. The other two variants,
@@ -89,9 +103,10 @@ Minimal valid Paygo body:
   Databricks-hosted foundation models live under `system.ai.*`. **Discover the available
   models at runtime rather than hard-coding** — the id above is only an example and the
   catalog changes as new models ship.
-- `traffic_percentage` exists on a destination but governs multi-destination routing, which is
-  a later phase. Leave it unset for the single-destination case above; check the API reference
-  for how it is interpreted before relying on a particular default.
+
+Names are also constrained across kinds: model services and model provider services **share a
+single name namespace within a schema**, so a create fails if a provider service in that schema
+already holds the leaf name (and vice versa).
 
 Full command:
 
@@ -102,6 +117,10 @@ databricks ai-gateway create-model-service \
   --comment 'Governed Llama endpoint for the search team' \
   --profile <PROFILE>
 ```
+
+On success **you become the owner of the service, and by default you are the only principal who
+can query it** — others need an explicit `EXECUTE` grant (see [Grants](#grants)). The service is
+immediately usable for the API types its destinations support; no separate deploy step.
 
 Response is the created `ModelService`. The two fields worth capturing are the server-derived
 `name` and the `etag` (needed for a later conditional update or delete). The representation
@@ -117,7 +136,9 @@ databricks ai-gateway get-model-service \
   model-services/<CATALOG>.<SCHEMA>.<SERVICE> --profile <PROFILE>
 ```
 
-`NAME` must be the typed `model-services/…` form. Use this before any update or delete to
+The published guide shows no `get` example, so this invocation is reconstructed from the CLI
+help; the typed `model-services/…` NAME form it uses *is* corroborated there (by the update and
+delete examples). Use a read before any update or delete to
 capture the current `etag`:
 
 ```bash
@@ -133,7 +154,9 @@ databricks ai-gateway list-model-services \
 ```
 
 Takes **no positionals**; the schema comes from `--parent`, which is semantically required by
-the API even though the CLI does not enforce it.
+the API even though the CLI does not enforce it. This whole section — the invocation and every
+flag below — comes from the CLI help and SDK types rather than the published guide, which shows
+no `list` example, so verify against `-h` and the API reference.
 
 | Flag | Notes |
 |---|---|
@@ -175,12 +198,19 @@ comma-separated list of field paths, and only those fields are applied.
 | `config.routing`, `config.routing.fallback` | **no** — intermediate paths are rejected |
 | `*` | **no** — wildcards are unsupported; list each path explicitly |
 
+Only the `comment` path is exercised by the published guide's update example; the rest of this
+matrix is read off the CLI help and SDK field definitions, so confirm a path in the API
+reference before depending on it. The same applies to `--etag` on update and delete, which the
+guide's examples omit.
+
 Rules:
 
 - The resource `name` is immutable — omit `--name`.
 - When the mask names `config` or any `config.*` subpath, `config` is **required** in the body.
 - Flags `--comment` / `--owner` set those fields without `--json`; `--json` supplies a partial
   `ModelService` body (again, unwrapped). A field changes only if its path is in the mask.
+- Replacing destinations re-sends the full destination list, so each entry needs its
+  `traffic_percentage` and the values must still sum to 100.
 
 ```bash
 # Comment only — no config needed in the body.
@@ -198,7 +228,8 @@ databricks ai-gateway update-model-service \
         "destinations": [{
           "name": "primary",
           "destination_type": "DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL",
-          "pay_per_token_config": {"model": "models/system.ai.<MODEL>"}
+          "pay_per_token_config": {"model": "models/system.ai.<MODEL>"},
+          "traffic_percentage": 100
         }]
       }
     }
@@ -227,7 +258,8 @@ databricks ai-gateway delete-model-service \
 
 No request body; `--etag` is the same if-match precondition as on update. Per the CLI help,
 requires ownership or `MANAGE` on the service, plus `USE_CATALOG` on the parent catalog and
-`USE_SCHEMA` on the parent schema.
+`USE_SCHEMA` on the parent schema. The system-provided services in `system.ai` **cannot be
+deleted** at all.
 
 Deleting a UC **model** that a destination references is documented as *not* removing the
 destination row: the dangling destination is surfaced rather than silently dropped so callers
@@ -250,16 +282,26 @@ form used by `ai-gateway`.
 
 | Goal | Privileges |
 |---|---|
-| Create a model service | Parent schema owner, **or** `CREATE_SERVICE` + `USE_SCHEMA` on the schema + `USE_CATALOG` on the catalog. Plus `USE_CATALOG` + `USE_SCHEMA` + `EXECUTE` on every referenced UC model. |
+| Create a model service | `USE_CATALOG` + `USE_SCHEMA` + `CREATE_SERVICE` on the catalog and schema you create it in, plus `EXECUTE` on each model the service routes to |
 | Invoke the service | `USE_CATALOG` + `USE_SCHEMA` + `EXECUTE` on the service |
 | `get` / `list` | Owner, or `EXECUTE` / `READ_METADATA` / `MANAGE` on the service, plus `USE_CATALOG` + `USE_SCHEMA` |
 | `update` / `delete` | Owner, or `MANAGE` on the service, plus `USE_CATALOG` + `USE_SCHEMA` |
 
-The `get` / `list` / `update` / `delete` rows restate the per-subcommand CLI help. The parent
-`USE_CATALOG` + `USE_SCHEMA` requirement is consistent across all four; the service-level
-privilege names are the ones the Beta help lists, so re-check them with
-`databricks ai-gateway <SUBCOMMAND> -h` and the API reference before encoding them in a
-provisioning script.
+A routed **model** destination needs only `EXECUTE` — do not also grant `USE_CATALOG` /
+`USE_SCHEMA` on that model's parents for creation to work. (A routed **model provider service**
+destination does additionally require `USE_CATALOG` + `USE_SCHEMA`; that destination type is a
+later phase. Enabling inference logging additionally needs `CREATE_TABLE` on the target
+catalog/schema — also a later phase.)
+
+The create and invoke rows come from the published guide. The `get` / `list` / `update` /
+`delete` rows restate the per-subcommand CLI help instead: the parent `USE_CATALOG` +
+`USE_SCHEMA` requirement is consistent across all four, but re-check the service-level privilege
+names with `databricks ai-gateway <SUBCOMMAND> -h` and the API reference before encoding them in
+a provisioning script.
+
+Model services use **definer's privileges** — a query is authorized against the *owner's*
+access to the destinations, not the caller's. A caller with `EXECUTE` on the service therefore
+needs no direct grant on the underlying models.
 
 ```bash
 # Current grants on the service.
@@ -274,11 +316,9 @@ databricks grants update model_service <CATALOG>.<SCHEMA>.<SERVICE> \
   --json '{"changes":[{"principal":"<GROUP>","remove":["EXECUTE"]}]}' --profile <PROFILE>
 ```
 
-`CREATE_SERVICE` is the privilege the Beta CLI help names for schema-level creation. If a
-workspace rejects that spelling, confirm the accepted value against
-`databricks grants get schema <CATALOG>.<SCHEMA>` and the API reference rather than
-substituting a broader privilege. General `GRANT`/`REVOKE` mechanics, inheritance, and
-ownership transfer belong to the
+Watch the spelling of the create privilege: prose and SQL call it `CREATE SERVICE`, while the
+CLI and API grant enum takes `CREATE_SERVICE`. General `GRANT`/`REVOKE` mechanics, inheritance,
+and ownership transfer belong to the
 [databricks-unity-catalog](../../databricks-unity-catalog/SKILL.md) skill.
 
 ## REST fallback

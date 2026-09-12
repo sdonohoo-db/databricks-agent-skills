@@ -155,10 +155,11 @@ class UnityGatewaySkillWiringTest(unittest.TestCase):
         self.assertIsNotNone(frontmatter, "SKILL.md has no frontmatter block")
         self.assertIn(f"name: {self._NAME}", frontmatter)
         self.assertIn("description:", frontmatter)
-        # Phase A shipped the first real content (model service CRUD) and bumped
-        # 0.1.0 -> 0.2.0. The version stays pinned here so a bump is always a
-        # deliberate edit landing alongside the content it describes.
-        self.assertIn('version: "0.2.0"', frontmatter)
+        # Phase A shipped the first real content (model service CRUD) at 0.2.0;
+        # 0.2.1 applied the doc-accuracy corrections found by auditing it against
+        # the published guide. The version stays pinned here so a bump is always
+        # a deliberate edit landing alongside the content it describes.
+        self.assertIn('version: "0.2.1"', frontmatter)
         # parent: databricks-core is what makes the routing row mandatory --
         # see RoutingCoverageTest.test_unity_gateway_has_routing_row.
         self.assertEqual(
@@ -264,6 +265,74 @@ class UnityGatewayModelServiceCrudTest(unittest.TestCase):
             "grants get model_service model-services/",
             self.combined,
             "grants must take the BARE name, never the typed model-services/ form",
+        )
+
+    # --- doc-accuracy corrections (audited against the published guide) -----
+
+    def test_create_example_sets_traffic_percentage_100(self):
+        # The guide's create examples all carry "traffic_percentage": 100 on a
+        # single destination, and percentages must sum to 100. An earlier draft
+        # omitted it and told readers to leave it unset -- exactly the kind of
+        # wrong-but-plausible advice a copy-paste reader would ship.
+        self.assertRegex(self.skill_md, r'"traffic_percentage":\s*100')
+        # Every fenced snippet that defines a paygo destination must set it.
+        for block in self._code_blocks(self.combined):
+            if "DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL" not in block:
+                continue
+            with self.subTest(block=block.strip()[:60]):
+                self.assertRegex(
+                    block,
+                    r'"traffic_percentage":\s*\d+',
+                    "a paygo destination snippet omits traffic_percentage",
+                )
+
+    def test_no_advice_to_leave_traffic_percentage_unset(self):
+        # Guard the specific reversed claim that was corrected, so it cannot
+        # creep back in via a copy-paste of the old wording.
+        self.assertNotRegex(
+            self.combined,
+            r"[Ll]eave (?:it|`?traffic_percentage`?) unset",
+            "traffic_percentage is required per destination; do not advise unsetting it",
+        )
+        self.assertRegex(self.combined, r"sum to 100")
+
+    def test_create_needs_only_execute_on_routed_model(self):
+        # The guide requires USE_CATALOG + USE_SCHEMA + CREATE_SERVICE on the
+        # catalog/schema, plus EXECUTE on each routed MODEL -- not
+        # USE_CATALOG/USE_SCHEMA on each model's parents too. Over-granting is a
+        # least-privilege violation, so pin the corrected wording.
+        self.assertIn("CREATE_SERVICE", self.skill_md)
+        for doc in (self.skill_md, self.reference_md):
+            if not doc:
+                continue
+            with self.subTest():
+                self.assertNotRegex(
+                    doc,
+                    r"USE_CATALOG`? \+ `?USE_SCHEMA`? \+ `?EXECUTE`? on \*\*each referenced UC model",
+                    "create must need only EXECUTE on a routed model",
+                )
+        # The corrected requirement is stated affirmatively somewhere.
+        self.assertRegex(
+            self.skill_md, r"EXECUTE`? on \*\*each model the service routes to"
+        )
+
+    def test_create_service_privilege_stated_plainly(self):
+        # The privilege is confirmed by the guide, so the old "if your workspace
+        # rejects it as an unknown privilege" hedge must be gone, replaced by the
+        # SQL-vs-enum spelling note.
+        self.assertNotIn("rejects it as an unknown privilege", self.combined)
+        self.assertIn("CREATE SERVICE", self.combined)
+
+    def test_ownership_and_namespace_facts_documented(self):
+        # Two doc-confirmed gotchas: creator is owner and initially the only
+        # principal who can query; model + model provider services share one
+        # namespace per schema.
+        self.assertRegex(self.skill_md, r"(?i)you become the owner")
+        self.assertRegex(
+            self.skill_md, r"(?i)only principal who\s+can query"
+        )
+        self.assertRegex(
+            self.skill_md, r"(?i)share one name namespace|share a single name namespace"
         )
 
     def test_create_documents_paygo_destination_type(self):
