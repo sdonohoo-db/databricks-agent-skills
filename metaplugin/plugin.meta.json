@@ -112,6 +112,7 @@
     "databricks-spark-structured-streaming": { "keyword": "structured-streaming" },
     "databricks-synthetic-data-gen": { "keyword": "synthetic-data" },
     "databricks-unity-catalog": { "keyword": "unity-catalog" },
+    "databricks-unity-gateway": { "keyword": "unity-gateway" },
     "databricks-unstructured-pdf-generation": { "keyword": "pdf-generation" },
     "databricks-zerobus-ingest": { "keyword": "zerobus" }
   },
@@ -121,6 +122,7 @@
     "strong": [
       "\\bdatabricks\\b",
       "\\bunity\\s+catalog\\b",
+      "\\bunity\\s+(?:ai\\s+)?gateway\\b",
       "\\blakeflow\\b",
       "\\blakebase\\b",
       "\\bdbfs\\b",
@@ -197,13 +199,14 @@
       { "label": "Spark Structured Streaming", "skill": "databricks-spark-structured-streaming" },
       { "label": "Synthetic / test data generation (Faker)", "skill": "databricks-synthetic-data-gen" },
       { "label": "Unity Catalog governance, access control & system tables", "skill": "databricks-unity-catalog" },
+      { "label": "Unity Gateway (formerly Unity AI Gateway): model services, MCP services & model provider services", "skill": "databricks-unity-gateway" },
       { "label": "Synthetic PDF generation for RAG", "skill": "databricks-unstructured-pdf-generation" },
       { "label": "Zerobus streaming ingest", "skill": "databricks-zerobus-ingest" }
     ],
     "instruction_preamble": "[DATABRICKS] This request is Databricks-related. Handle it through the Databricks skills rather than ad hoc commands. Use the Skill tool to load `databricks-core` first (the parent skill: CLI, auth, profile selection, data exploration), then load the product skill that matches the request:",
     "instruction_closing": "Then follow the skill's guidance (it drives the `databricks` CLI). If no product skill fits, databricks-core alone is enough.",
     "reminder": "[DATABRICKS] Databricks-related prompt: keep routing through the Databricks skills (databricks-core plus the matching product skill); load any that are not already loaded.",
-    "rule_description": "Routing for any Databricks task -- CLI, auth, profiles, data exploration, Jobs/Lakeflow, Spark Declarative Pipelines (formerly DLT), Apps/AppKit, Asset Bundles/DABs, Model Serving, Lakebase/Postgres, Vector Search/RAG, Genie, and classic-to-serverless migration. Apply when the request is Databricks-related so the Databricks skills are loaded instead of ad hoc commands.",
+    "rule_description": "Routing for any Databricks task -- CLI, auth, profiles, data exploration, Jobs/Lakeflow, Spark Declarative Pipelines (formerly DLT), Apps/AppKit, Asset Bundles/DABs, Model Serving, Unity Gateway, Lakebase/Postgres, Vector Search/RAG, Genie, and classic-to-serverless migration. Apply when the request is Databricks-related so the Databricks skills are loaded instead of ad hoc commands.",
     "rule_preamble": [
       "This request is Databricks-related. Handle it through the Databricks skills",
       "rather than ad hoc commands. Load the `databricks-core` skill first (the parent:",
