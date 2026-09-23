@@ -1,6 +1,6 @@
 ---
 name: databricks-unity-gateway
-description: "Create and manage Unity Gateway securables for governed AI access with the Databricks CLI. Use for Unity Gateway (formerly Unity AI Gateway) model services, MCP services, and model provider services. Not for legacy AI Gateway configuration attached to Model Serving endpoints; use databricks-model-serving for that."
+description: "Create and manage Unity Gateway resources with `databricks ai-gateway`. Use whenever a request names Unity Gateway or Unity AI Gateway, including model services, MCP services, and model provider services. Not for legacy AI Gateway configuration attached to Model Serving endpoints; use databricks-model-serving for that."
 compatibility: Requires databricks CLI (>= v1.11.0)
 metadata:
   version: "0.1.0"
@@ -35,6 +35,12 @@ Unity Gateway resources unless the user explicitly requests a migration.
 Use only the Databricks CLI for implementation. Do not substitute direct REST calls or a
 Databricks SDK.
 
+An explicit request for **Unity Gateway**, **Unity AI Gateway**, or
+`databricks ai-gateway` belongs to this skill. Do not switch to
+`databricks-model-serving` merely because the request involves a model service or a
+workspace. Use that skill only for a legacy per-endpoint AI Gateway operation or when a
+provisioned-throughput destination requires Model Serving endpoint details.
+
 1. Verify the CLI meets the minimum version:
 
    ```bash
@@ -62,9 +68,17 @@ installed CLI help and the Unity Gateway documentation for the selected service 
 
 | Service type | CLI operations |
 |---|---|
-| Model service | `create-model-service`, `get-model-service`, `list-model-services`, `update-model-service`, `delete-model-service` |
+| Model service | `create-model-service`, `get-model-service`, `list-model-services`, `update-model-service`, `delete-model-service`; read [Model services](references/model-services.md) |
 | MCP service | `create-mcp-service`, `get-mcp-service`, `list-mcp-services`, `update-mcp-service`, `delete-mcp-service` |
 | Model provider service | `create-model-provider-service`, `get-model-provider-service`, `list-model-provider-services`, `update-model-provider-service`, `delete-model-provider-service` |
+
+Before any model-service operation, read
+[references/model-services.md](references/model-services.md). It contains the current
+resource-name conventions, JSON payload fields, required-input gate, and lifecycle
+commands. Do not fetch public documentation for fields already covered there. Consult the
+authoritative documentation only when a required field is absent from the reference or the
+user explicitly asks for the latest documentation. Do not assign a Beta or preview status
+unless the installed CLI help or current documentation explicitly does so.
 
 ## Authoritative Documentation
 
