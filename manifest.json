@@ -499,13 +499,17 @@
       "version": "0.3.0"
     },
     "databricks-unity-gateway": {
-      "description": "Create and manage Unity Gateway resources with `databricks ai-gateway`.",
+      "description": "Create, manage, query, and grant access to Unity Gateway resources.",
       "files": [
         "SKILL.md",
         "agents/openai.yaml",
         "assets/databricks.png",
         "assets/databricks.svg",
-        "references/model-services.md"
+        "references/mcp-services.md",
+        "references/model-provider-services.md",
+        "references/model-services.md",
+        "references/permissions.md",
+        "references/querying.md"
       ],
       "repo_dir": "skills",
       "version": "0.1.0"

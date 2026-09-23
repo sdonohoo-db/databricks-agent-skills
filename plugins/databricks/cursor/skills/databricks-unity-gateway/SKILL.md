@@ -1,6 +1,6 @@
 ---
 name: databricks-unity-gateway
-description: "Create and manage Unity Gateway resources with `databricks ai-gateway`. Use whenever a request names Unity Gateway or Unity AI Gateway, including model services, MCP services, and model provider services. Not for legacy AI Gateway configuration attached to Model Serving endpoints; use databricks-model-serving for that."
+description: "Create, manage, query, and grant access to Unity Gateway resources. Use whenever a request names Unity Gateway or Unity AI Gateway, including model services, MCP services, and model provider services. Not for legacy AI Gateway configuration attached to Model Serving endpoints; use databricks-model-serving for that."
 compatibility: Requires databricks CLI (>= v1.11.0)
 metadata:
   version: "0.1.0"
@@ -32,8 +32,9 @@ Unity Gateway resources unless the user explicitly requests a migration.
 
 ## CLI Workflow
 
-Use only the Databricks CLI for implementation. Do not substitute direct REST calls or a
-Databricks SDK.
+Use the Databricks CLI for resource lifecycle and permission management. Do not substitute
+direct REST calls or a Databricks SDK for those operations. Python clients are supported
+for querying model and model provider services; read [Query services](references/querying.md).
 
 An explicit request for **Unity Gateway**, **Unity AI Gateway**, or
 `databricks ai-gateway` belongs to this skill. Do not switch to
@@ -69,13 +70,25 @@ installed CLI help and the Unity Gateway documentation for the selected service 
 | Service type | CLI operations |
 |---|---|
 | Model service | `create-model-service`, `get-model-service`, `list-model-services`, `update-model-service`, `delete-model-service`; read [Model services](references/model-services.md) |
-| MCP service | `create-mcp-service`, `get-mcp-service`, `list-mcp-services`, `update-mcp-service`, `delete-mcp-service` |
-| Model provider service | `create-model-provider-service`, `get-model-provider-service`, `list-model-provider-services`, `update-model-provider-service`, `delete-model-provider-service` |
+| MCP service | `create-mcp-service`, `get-mcp-service`, `list-mcp-services`, `update-mcp-service`, `delete-mcp-service`; read [MCP services](references/mcp-services.md) |
+| Model provider service | `create-model-provider-service`, `get-model-provider-service`, `list-model-provider-services`, `update-model-provider-service`, `delete-model-provider-service`; read [Model provider services](references/model-provider-services.md) |
+
+## Querying and permissions
+
+- Before writing Python that invokes a model or model provider service, read
+  [references/querying.md](references/querying.md).
+- Before checking, granting, or revoking Unity Gateway access, read
+  [references/permissions.md](references/permissions.md). Permission changes use
+  `databricks grants` (plural), not `databricks grant`.
 
 Before any model-service operation, read
 [references/model-services.md](references/model-services.md). It contains the current
 resource-name conventions, JSON payload fields, required-input gate, and lifecycle
-commands. Do not fetch public documentation for fields already covered there. Consult the
+commands. Before any MCP-service operation, read
+[references/mcp-services.md](references/mcp-services.md) for the equivalent MCP-specific
+contract. Before any model-provider-service operation, read
+[references/model-provider-services.md](references/model-provider-services.md). Do not
+fetch public documentation for fields already covered by these references. Consult the
 authoritative documentation only when a required field is absent from the reference or the
 user explicitly asks for the latest documentation. Do not assign a Beta or preview status
 unless the installed CLI help or current documentation explicitly does so.
@@ -87,3 +100,7 @@ unless the installed CLI help or current documentation explicitly does so.
 - [Model service API reference](https://docs.databricks.com/api/ai-gateway/v1/model-service)
 - [MCP service API reference](https://docs.databricks.com/api/ai-gateway/v1/mcp-service)
 - [Model provider service API reference](https://docs.databricks.com/api/ai-gateway/v1/model-provider-service)
+- [Query model services](https://docs.databricks.com/aws/en/ai-gateway/query-model-services)
+- [Query model provider services](https://docs.databricks.com/aws/en/ai-gateway/query-model-provider-services)
+- [Model service requirements and grants](https://docs.databricks.com/aws/en/ai-gateway/create-model-services)
+- [Model provider service governance](https://docs.databricks.com/aws/en/ai-gateway/govern-model-provider-services)
