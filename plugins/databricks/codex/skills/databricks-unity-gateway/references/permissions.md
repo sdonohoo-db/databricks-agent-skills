@@ -1,7 +1,7 @@
 # Permissions
 
 Read this reference before inspecting or changing access to Unity Gateway securables.
-Permission operations use `databricks grants` (plural) and require an explicit CLI profile.
+Permission operations use `databricks grants` and require an explicit CLI profile.
 
 ## Query access
 

@@ -78,8 +78,7 @@ installed CLI help and the Unity Gateway documentation for the selected service 
 - Before writing Python that invokes a model or model provider service, read
   [references/querying.md](references/querying.md).
 - Before checking, granting, or revoking Unity Gateway access, read
-  [references/permissions.md](references/permissions.md). Permission changes use
-  `databricks grants` (plural), not `databricks grant`.
+  [references/permissions.md](references/permissions.md).
 
 Before any model-service operation, read
 [references/model-services.md](references/model-services.md). It contains the current
