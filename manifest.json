@@ -508,6 +508,7 @@
         "references/mcp-services.md",
         "references/model-provider-services.md",
         "references/model-services.md",
+        "references/model-serving-migration.md",
         "references/permissions.md",
         "references/querying.md"
       ],
