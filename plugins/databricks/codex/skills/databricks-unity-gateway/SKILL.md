@@ -26,25 +26,6 @@ Treat **Unity AI Gateway** as an earlier name for **Unity Gateway** when the res
 Unity Catalog securable. Do not translate legacy Model Serving AI Gateway resources into
 Unity Gateway resources unless the user explicitly requests a migration.
 
-## Query a model
-
-Databricks-hosted models already exist as model services in `system.ai`, e.g.
-`system.ai.claude-opus-5-5` and `system.ai.gpt-6-sol`. Query them directly; do not create a
-model service to call one. Create a model service only for custom routing, fallback, rate
-limits, inference tables, or an external or provisioned-throughput destination. Default to
-the unified Responses API with `databricks-openai`:
-
-```python
-from databricks.sdk import WorkspaceClient
-from databricks_openai import DatabricksOpenAI
-client = DatabricksOpenAI(workspace_client=WorkspaceClient(), use_ai_gateway=True)
-response = client.responses.create(model="system.ai.claude-opus-5-5", input="What is Databricks?")
-print(response.output_text)
-```
-
-Do not use `/serving-endpoints` or `databricks-<model>` endpoint names. For examples, tools,
-native APIs, and provider services, read [references/querying.md](references/querying.md).
-
 ## CLI Workflow
 
 Use the Databricks CLI for resource lifecycle and permission management. Do not substitute
@@ -94,15 +75,11 @@ installed CLI help and the Unity Gateway documentation for the selected service 
   [references/querying.md](references/querying.md).
 - Before checking, granting, or revoking Unity Gateway access, read
   [references/permissions.md](references/permissions.md).
+- Before any model-service operation, read [references/model-services.md](references/model-services.md). It contains the current resource-name conventions, JSON payload fields, required-input gate, and lifecycle commands.
+- Before any MCP-service operation, read [references/mcp-services.md](references/mcp-services.md) for the equivalent MCP-specific contract.
+- Before any model-provider-service operation, read [references/model-provider-services.md](references/model-provider-services.md).
 
-Before any model-service operation, read
-[references/model-services.md](references/model-services.md). It contains the current
-resource-name conventions, JSON payload fields, required-input gate, and lifecycle
-commands. Before any MCP-service operation, read
-[references/mcp-services.md](references/mcp-services.md) for the equivalent MCP-specific
-contract. Before any model-provider-service operation, read
-[references/model-provider-services.md](references/model-provider-services.md). Do not
-fetch public documentation for fields already covered by these references. Consult the
+Do not fetch public documentation for fields already covered by these references. Consult the
 authoritative documentation only when a required field is absent from the reference or the
 user explicitly asks for the latest documentation. Do not assign a Beta or preview status
 unless the installed CLI help or current documentation explicitly does so.

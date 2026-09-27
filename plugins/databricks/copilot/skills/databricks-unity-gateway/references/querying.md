@@ -4,6 +4,8 @@ Read this reference when writing Python that invokes a Unity Gateway model servi
 provider service. Python is for inference; continue to use the Databricks CLI for service
 lifecycle and permission management.
 
+A model service is required to query a Unity Gateway model. Databricks-hosted models already exist as model services in `system.ai`, e.g. `system.ai.claude-opus-5-5` and `system.ai.gpt-6-sol`. Reference [Model services](./model-services.md) if you need to create a new model service with it's own governance.
+
 ## Resolve query inputs
 
 Before writing or running a query, resolve:
@@ -94,7 +96,7 @@ for item in response.output:
         print(item.name, item.arguments)
 ```
 
-While the MLflow Chat Completions on the same base url ai-gateway/mlflow/v1/chat/completions remains supported,
+While the MLflow Chat Completions on the same base url `ai-gateway/mlflow/v1/chat/completions` remains supported,
 the unified Responses endpoint is recommended as the default for any new applications with greater tool calling and agentic support.
 
 Use a native API only when the backing model supports that format:
@@ -118,8 +120,7 @@ response = OpenAI(
 )
 ```
 
-Do not use a native API whose format does not match the backing model. Use the unified
-Responses path when the backing provider is unknown or portability is preferred.
+Do not use `/serving-endpoints` or `databricks-<model>` endpoint names. Do not use a native API whose format does not match the backing model. Use the unified Responses path when the backing provider is unknown or portability is preferred.
 
 ## Query a model provider service
 
