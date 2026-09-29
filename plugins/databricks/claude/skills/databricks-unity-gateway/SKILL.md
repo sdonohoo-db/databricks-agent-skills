@@ -21,6 +21,7 @@ command group keeps the earlier product name: `databricks ai-gateway --help`.
 | Unity Gateway or Unity AI Gateway model service, MCP service, or model provider service | This skill and `databricks ai-gateway` |
 | AI Gateway configuration on a Model Serving endpoint, including `put-ai-gateway` | `databricks-model-serving` and `databricks serving-endpoints` |
 | Lakeflow Connect ingestion gateway | `databricks-lakeflow-connect` |
+| Connect a coding agent (Claude Code, Codex, `ug`, Smart Routing, Omnigent) | Not this skill; it configures the client, not gateway resources |
 
 Treat **Unity AI Gateway** as an earlier name for **Unity Gateway** when the resource is a
 Unity Catalog securable. Do not translate legacy Model Serving AI Gateway resources into
@@ -97,10 +98,6 @@ When migrating from workspace-scoped Model Serving endpoints to Unity Catalog-sc
 **How do I use OpenAI embeddings or image APIs?** Use an OpenAI model provider service and its native managed path for embeddings. For an unmanaged path e.g. `openai/v1/images/generations`, enable passthrough via [Model provider services](references/model-provider-services.md) and accept the reduced governance coverage.
 
 **How do I return a tool result with unified Open Responses?** Preserve every model output item. Add the `function_call_output` with the same `call_id`, then send the complete input again. Preserve provider fields such as Gemini `encrypted_content`.
-
-**How do I connect a coding agent?** Install the Unity Gateway CLI with `uv tool install git+https://github.com/databricks/unity-gateway`, then run `ug claude`, `ug codex`, `ug gemini`, or another supported agent. Use `ug configure`, `ug mcp add`, and `ug usage`. The old `ucode` commands remain compatible.
-
-**How do I let Unity Gateway pick the model for each request?** Use Smart Routing (Beta). Developers run `ug codex --enable-smart-routing` or `ug claude --enable-smart-routing` (the setting persists), then `ug codex -- "<prompt>"`. For a team, admins set `smart_routing.enabled` in the managed agent config, applied with `ug configure`. Requires: account admin turns on the Smart Routing account preview, a Unity Gateway region, and `EXECUTE` on every candidate `system.ai` model service. Candidates are a fixed `system.ai` list (at Beta: Codex GPT-5.6 Sol/Luna and GLM 5.2; Claude Code Opus 4.8 and Sonnet 5), with no custom or provider services. It routes the session and its subagents; an explicit model choice overrides it. Not weighted model-service traffic splitting. See [Smart Routing](https://docs.databricks.com/aws/en/ai-gateway/smart-routing).
 
 **Why does a configured service fail at inference?** A model can be visible in Unity Catalog but unavailable from the workspace region. Confirm a matching service in the Unity Gateway UI and check the public model-serving availability matrix.
 
