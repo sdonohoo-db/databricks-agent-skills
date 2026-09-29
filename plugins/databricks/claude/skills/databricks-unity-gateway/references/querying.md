@@ -12,6 +12,7 @@ Before writing or running a query, resolve:
 
 - Workspace URL and authentication method
 - Exact three-part service name: `<catalog>.<schema>.<service>`
+- Find Databricks-hosted model names with `databricks ai-gateway list-model-services --parent schemas/system.ai`; do not guess version names.
 - API format required by the request
 - For a model provider service, an upstream model allowed by its target configuration
 - Optional request tags
@@ -122,6 +123,14 @@ response = OpenAI(
 
 Do not use `/serving-endpoints` or `databricks-<model>` endpoint names. Do not use a native API whose format does not match the backing model. Use the unified Responses path when the backing provider is unknown or portability is preferred.
 
+### Anthropic SDK
+
+The Anthropic SDK has no Responses API, and `databricks-ai-bridge` has no Anthropic client. For unified Responses, use the OpenAI client as in [Query a model service](#query-a-model-service). If the Anthropic SDK is required, use the native Messages API at `<workspace-url>/ai-gateway/anthropic` with a Databricks token.
+
+## SQL `ai_query`
+
+`ai_query` supports only Databricks-provided `system.ai` model services, not custom model services. Only usage tracking applies; rate limits, policies, inference tables, and fallbacks do not.
+
 ## Query a model provider service
 
 Provider-service requests differ in two fields:
@@ -167,6 +176,7 @@ Prefer managed paths. Unmanaged passthrough must be explicitly enabled on the pr
 service and bypasses usage token and cost tracking, token-based rate limits, model access
 control, and service policies. Select a client and path matching the configured target's
 `native_api_types`; do not assume every provider or target accepts the OpenAI format.
+For OpenAI embeddings use the managed embeddings path; for an unmanaged path such as `openai/v1/images/generations`, enable passthrough via [Model provider services](model-provider-services.md).
 
 ## Request tags
 
@@ -189,3 +199,7 @@ response = client.responses.create(
 For a model service that routes to a model provider service, the model service's rate
 limits, guardrails, inference table, and fallback behavior apply. The referenced provider
 service's corresponding features are skipped for that routed request.
+
+## Troubleshooting
+
+**A configured service fails at inference.** A model can be visible in Unity Catalog but unavailable from the workspace region. Confirm a matching service in the Unity Gateway UI and check the public model-serving availability matrix.

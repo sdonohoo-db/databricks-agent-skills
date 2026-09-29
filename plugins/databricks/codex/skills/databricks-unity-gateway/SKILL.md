@@ -89,18 +89,6 @@ unless the installed CLI help or current documentation explicitly does so.
 
 When migrating from workspace-scoped Model Serving endpoints to Unity Catalog-scoped Unity Gateway services, read [references/model-serving-migration.md](references/model-serving-migration.md).
 
-## Common questions
-
-**Can `ai_query` use a custom model service?** No. It supports Databricks-provided `system.ai` model services. Only usage tracking applies; rate limits, policies, inference tables, and fallbacks do not.
-
-**Can I use the Anthropic SDK?** The Anthropic SDK has no Responses API, and `databricks-ai-bridge` has no Anthropic client. For [unified Responses](references/querying.md#query-a-model-service), use `DatabricksOpenAI` as in [Query a model](#query-a-model). If the Anthropic SDK is required, use the native Messages API at `<workspace-url>/ai-gateway/anthropic` with a Databricks token. This is the native Messages API, not unified Responses.
-
-**How do I use OpenAI embeddings or image APIs?** Use an OpenAI model provider service and its native managed path for embeddings. For an unmanaged path e.g. `openai/v1/images/generations`, enable passthrough via [Model provider services](references/model-provider-services.md) and accept the reduced governance coverage.
-
-**How do I return a tool result with unified Open Responses?** Preserve every model output item. Add the `function_call_output` with the same `call_id`, then send the complete input again. Preserve provider fields such as Gemini `encrypted_content`.
-
-**Why does a configured service fail at inference?** A model can be visible in Unity Catalog but unavailable from the workspace region. Confirm a matching service in the Unity Gateway UI and check the public model-serving availability matrix.
-
 ## Authoritative Documentation
 
 - [Unity Gateway overview](https://docs.databricks.com/aws/en/ai-gateway/)
