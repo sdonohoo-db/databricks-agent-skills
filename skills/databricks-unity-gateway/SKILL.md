@@ -21,7 +21,6 @@ command group keeps the earlier product name: `databricks ai-gateway --help`.
 | Unity Gateway or Unity AI Gateway model service, MCP service, or model provider service | This skill and `databricks ai-gateway` |
 | AI Gateway configuration on a Model Serving endpoint, including `put-ai-gateway` | `databricks-model-serving` and `databricks serving-endpoints` |
 | Lakeflow Connect ingestion gateway | `databricks-lakeflow-connect` |
-| Connect a coding agent (Claude Code, Codex, `ug`, Smart Routing, Omnigent) | Not this skill; it configures the client, not gateway resources |
 
 Treat **Unity AI Gateway** as an earlier name for **Unity Gateway** when the resource is a
 Unity Catalog securable. Do not translate legacy Model Serving AI Gateway resources into
@@ -72,10 +71,8 @@ installed CLI help and the Unity Gateway documentation for the selected service 
 
 ## Querying and permissions
 
-- Before writing Python that invokes a model or model provider service, read
-  [references/querying.md](references/querying.md).
-- Before checking, granting, or revoking Unity Gateway access, read
-  [references/permissions.md](references/permissions.md).
+- Before writing Python that invokes a model or model provider service, read [references/querying.md](references/querying.md).
+- Before checking, granting, or revoking Unity Gateway access, read [references/permissions.md](references/permissions.md).
 - Before any model-service operation, read [references/model-services.md](references/model-services.md). It contains the current resource-name conventions, JSON payload fields, required-input gate, and lifecycle commands.
 - Before any MCP-service operation, read [references/mcp-services.md](references/mcp-services.md) for the equivalent MCP-specific contract.
 - Before any model-provider-service operation, read [references/model-provider-services.md](references/model-provider-services.md).
