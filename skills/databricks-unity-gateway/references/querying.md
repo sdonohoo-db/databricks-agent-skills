@@ -4,7 +4,7 @@ Read this reference when writing Python that invokes a Unity Gateway model servi
 provider service. Python is for inference; continue to use the Databricks CLI for service
 lifecycle and permission management.
 
-A model service is required to query a Unity Gateway model. Databricks-hosted models already exist as model services in `system.ai`, e.g. `system.ai.claude-opus-5-5` and `system.ai.gpt-6-sol`. Reference [Model services](./model-services.md) if you need to create a new model service with it's own governance.
+A model service is required to query a Unity Gateway model. Databricks-hosted models already exist as model services in `system.ai`. Reference [Model services](./model-services.md) if you need to create a new model service with its own governance.
 
 ## Resolve query inputs
 

@@ -1,7 +1,7 @@
 ---
 name: databricks-unity-gateway
-description: "Create, manage, query, and grant access to Unity Gateway resources. Use whenever a request requires inference on a model like claude, openai, gemini or open source or names Unity Gateway or Unity AI Gateway, including model services, MCP services, model provider services. Not for legacy workspace scoped AI Gateway configuration attached to Model Serving endpoints; use databricks-model-serving for that. Use also for migration from legacy AI Gateway to Unity Gateway, including when an app, job, or client that has CAN_QUERY on a serving endpoint gets permission denied calling a new model or a `system.ai` or three-part model name."
-compatibility: Requires databricks CLI (>= v1.17.0)
+description: "Use for requests involving pay-per-token foundation models, including Unity Gateway (fka Unity AI Gateway) model services, model provider services, MCP services, `system.ai` services, three-part Unity Catalog service names, or migration from legacy AI Gateway. Also use when a workload with Model Serving `CAN_QUERY` fails to access a Unity Gateway service. Not for legacy AI Gateway configuration attached to Model Serving endpoints; use databricks-model-serving for that."
+compatibility: Requires databricks CLI (>= v1.11.0)
 metadata:
   version: "0.1.0"
 parent: databricks-core
