@@ -1,6 +1,6 @@
 ---
 name: databricks-unity-gateway
-description: "Create, manage, query, and grant access to Unity Gateway resources. Use whenever a request names Unity Gateway or Unity AI Gateway, including model services, MCP services, and model provider services. Not for legacy AI Gateway configuration attached to Model Serving endpoints; use databricks-model-serving for that."
+description: "Use for requests involving pay-per-token foundation models, including Unity Gateway (may also be referred to as Unity AI Gateway) model services, model provider services, MCP services, `system.ai` services, three-part Unity Catalog service names, or migration from legacy AI Gateway. Also use when a workload with Model Serving `CAN_QUERY` fails to access a Unity Gateway service. Not for legacy AI Gateway configuration attached to Model Serving endpoints; use databricks-model-serving for that."
 compatibility: Requires databricks CLI (>= v1.11.0)
 metadata:
   version: "0.1.0"
@@ -11,18 +11,14 @@ parent: databricks-core
 
 Use the parent `databricks-core` skill for CLI authentication and profile selection.
 
-Unity Gateway provides Unity Catalog securables for governed access to AI services. The
-current CLI command group retains the earlier product name:
-
-```bash
-databricks ai-gateway --help
-```
+Unity Gateway provides Unity Catalog securables for governed access to AI services. The CLI
+command group keeps the earlier product name: `databricks ai-gateway --help`.
 
 ## Choose the Correct Gateway
 
 | Request | Use |
 |---|---|
-| Unity Gateway or Unity AI Gateway model service, MCP service, or model provider service | This skill and `databricks ai-gateway` |
+| Unity Gateway model service, MCP service, or model provider service | This skill and `databricks ai-gateway` |
 | AI Gateway configuration on a Model Serving endpoint, including `put-ai-gateway` | `databricks-model-serving` and `databricks serving-endpoints` |
 | Lakeflow Connect ingestion gateway | `databricks-lakeflow-connect` |
 
@@ -75,31 +71,35 @@ installed CLI help and the Unity Gateway documentation for the selected service 
 
 ## Querying and permissions
 
-- Before writing Python that invokes a model or model provider service, read
-  [references/querying.md](references/querying.md).
-- Before checking, granting, or revoking Unity Gateway access, read
-  [references/permissions.md](references/permissions.md).
+- Before writing Python that invokes a model or model provider service, read [references/querying.md](references/querying.md).
+- Before checking, granting, or revoking Unity Gateway access, read [references/permissions.md](references/permissions.md).
+- Before any model-service operation, read [references/model-services.md](references/model-services.md). It contains the current resource-name conventions, JSON payload fields, required-input gate, and lifecycle commands.
+- Before any MCP-service operation, read [references/mcp-services.md](references/mcp-services.md) for the equivalent MCP-specific contract.
+- Before any model-provider-service operation, read [references/model-provider-services.md](references/model-provider-services.md).
 
-Before any model-service operation, read
-[references/model-services.md](references/model-services.md). It contains the current
-resource-name conventions, JSON payload fields, required-input gate, and lifecycle
-commands. Before any MCP-service operation, read
-[references/mcp-services.md](references/mcp-services.md) for the equivalent MCP-specific
-contract. Before any model-provider-service operation, read
-[references/model-provider-services.md](references/model-provider-services.md). Do not
-fetch public documentation for fields already covered by these references. Consult the
+Do not fetch public documentation for fields already covered by these references. Consult the
 authoritative documentation only when a required field is absent from the reference or the
 user explicitly asks for the latest documentation. Do not assign a Beta or preview status
 unless the installed CLI help or current documentation explicitly does so.
 
+## Migration from Model Serving to Unity Gateway
+
+When migrating from workspace-scoped Model Serving endpoints to Unity Catalog-scoped Unity Gateway services, read [references/model-serving-migration.md](references/model-serving-migration.md).
+
 ## Authoritative Documentation
 
-- [Unity Gateway overview](https://learn.microsoft.com/en-us/azure/databricks/ai-gateway/)
+- [Unity Gateway overview](https://docs.databricks.com/aws/en/ai-gateway/)
+- [Unity Gateway release notes](https://docs.databricks.com/aws/en/release-notes/unity-gateway/)
 - [Unity Gateway developer documentation](https://developers.databricks.com/docs/agents/ai-gateway)
 - [Model service API reference](https://docs.databricks.com/api/ai-gateway/v1/model-service)
 - [MCP service API reference](https://docs.databricks.com/api/ai-gateway/v1/mcp-service)
 - [Model provider service API reference](https://docs.databricks.com/api/ai-gateway/v1/model-provider-service)
 - [Query model services](https://docs.databricks.com/aws/en/ai-gateway/query-model-services)
+- [Open Responses specification](https://www.openresponses.org/specification)
+- [Open Responses provider behavior on Databricks](https://docs.databricks.com/aws/en/machine-learning/model-serving/query-open-responses-models)
 - [Query model provider services](https://docs.databricks.com/aws/en/ai-gateway/query-model-provider-services)
 - [Model service requirements and grants](https://docs.databricks.com/aws/en/ai-gateway/create-model-services)
 - [Model provider service governance](https://docs.databricks.com/aws/en/ai-gateway/govern-model-provider-services)
+- [Routing and fallbacks](https://docs.databricks.com/aws/en/ai-gateway/configure-traffic-splitting)
+- [Rate limits](https://docs.databricks.com/aws/en/ai-gateway/rate-limits)
+- [Register an external MCP server](https://docs.databricks.com/aws/en/ai-gateway/register-mcp-service)

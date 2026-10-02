@@ -2,9 +2,11 @@
 
 Read this reference when creating or managing a Unity Gateway model service.
 
-A model service is a Unity Catalog securable in a schema. Its configuration routes
-inference requests to one or more destinations and can include fallback routing, rate
-limits, and inference-table logging.
+A model service is a Unity Catalog securable in a schema that routes inference requests to one or more destinations, with configurable fallbacks, rate limits, and inference-table logging. Databricks-hosted models already have model services in `system.ai`; authorized users can configure their rate limits and logging without creating another service. Create your own for separately governed configuration, custom routing and fallbacks, or external-model or provisioned-throughput destinations.
+
+- [Model services](https://docs.databricks.com/aws/en/ai-gateway/model-services)
+- [Inference-table requirements](https://docs.databricks.com/aws/en/ai-gateway/inference-tables)
+- [Create a model service](https://docs.databricks.com/aws/en/ai-gateway/create-model-services)
 
 ## Resource names
 

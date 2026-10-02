@@ -499,7 +499,7 @@
       "version": "0.3.0"
     },
     "databricks-unity-gateway": {
-      "description": "Create, manage, query, and grant access to Unity Gateway resources.",
+      "description": "Use for requests involving pay-per-token foundation models, including Unity Gateway (may also be referred to as Unity AI Gateway) model services, model provider services, MCP services, `system.ai`...",
       "files": [
         "SKILL.md",
         "agents/openai.yaml",
@@ -508,6 +508,7 @@
         "references/mcp-services.md",
         "references/model-provider-services.md",
         "references/model-services.md",
+        "references/model-serving-migration.md",
         "references/permissions.md",
         "references/querying.md"
       ],
