@@ -6,6 +6,16 @@ lifecycle and permission management.
 
 A model service is required to query a Unity Gateway model. Databricks-hosted models already exist as model services in `system.ai`. Reference [Model services](./model-services.md) if you need to create a new model service with its own governance.
 
+## Access paths
+
+Unity Gateway exposes three ways to call models. All three go through governed Unity Catalog services. They differ in API surface, feature coverage, and where the model runs:
+
+| Path | Endpoint | Coverage and limits | Use when |
+|---|---|---|---|
+| 1. Unified APIs (provider-agnostic) | `/ai-gateway/mlflow/v1/responses`, `/ai-gateway/mlflow/v1/embeddings`, `/ai-gateway/mlflow/v1/chat/completions` | OpenAI-compatible request/response shape across any backing provider; one OpenAI SDK client calls GPT/Claude/Gemini/GLM/Kimi models. Common-denominator feature set; supports swapping the backing model and multi-provider model services. Full gateway governance. | Portability across providers matters more than provider-specific features. |
+| 2. Native APIs (Databricks-hosted models) | `/ai-gateway/openai/v1/responses`, `/ai-gateway/anthropic`, `/ai-gateway/gemini` | Native provider APIs, with documented limitations on supported parameters and tools (see [OpenAI Responses limitations](https://docs.databricks.com/aws/en/machine-learning/model-serving/query-openai-responses#limitations)). Full gateway governance. | A provider-specific application (e.g. OpenAI SDK) moving onto Databricks-hosted models with minimal refactoring. |
+| 3. Provider passthrough (model provider service) | Managed chat / responses / embeddings paths, other provider paths (e.g. `/images/generations`) via unmanaged-path opt-in | Full native provider surface, including code interpreter and Files (these execute provider-side). Full governance on managed paths. Unmanaged paths (e.g. `/files`, `/images/generations`) get credential brokering with thinner governance. | Inference must stay with the provider (e.g. for provider-only features). |
+
 ## Resolve query inputs
 
 Before writing or running a query, resolve:
@@ -26,8 +36,12 @@ The caller needs `USE CATALOG`, `USE SCHEMA`, and `EXECUTE` on the selected serv
 [permissions.md](permissions.md).
 
 ## Query a model service
-The unified Responses API `/ai-gateway/mlflow/v1/responses` path works across underlying providers, and is the official method to run inference on LLMs on Databricks.
-It implements the [Open Responses](https://www.openresponses.org/reference) specification and works across underlying providers; Unity Gateway translates each request to the backing model's native format. Set `model` to the model service's fully qualified three-part name:
+
+The unified Responses API (`/ai-gateway/mlflow/v1/responses`) is the recommended way to run
+LLM inference on Databricks. It implements the
+[Open Responses](https://www.openresponses.org/reference) specification and works across
+backing providers; Unity Gateway translates each request to the backing model's native
+format. Set `model` to the model service's fully qualified three-part name:
 
 ```python
 import os
@@ -97,8 +111,20 @@ for item in response.output:
         print(item.name, item.arguments)
 ```
 
-While the MLflow Chat Completions on the same base url `ai-gateway/mlflow/v1/chat/completions` remains supported,
-the unified Responses endpoint is recommended as the default for any new applications with greater tool calling and agentic support.
+Default to the unified Responses API for new code as it has greater tool calling and agentic support. The unified Chat Completions API on the
+same base URL (`/ai-gateway/mlflow/v1/chat/completions`) remains supported for backward compatibility. Use it when existing code, an agent, or a framework does not support the
+Responses API. 
+
+```python
+response = client.chat.completions.create(
+    model="<catalog>.<schema>.<model-service>",
+    messages=[{"role": "user", "content": "What is Databricks?"}],
+)
+
+print(response.choices[0].message.content)
+```
+
+### Native APIs
 
 Use a native API only when the backing model supports that format:
 
@@ -141,7 +167,7 @@ Provider-service requests differ in two fields:
 For an OpenAI-compatible target whose `native_api_types` include `openai/v1/responses`:
 
 ```python
-# Note example here uses optional databricks-openai package to simplify authentication
+# Uses the optional databricks-openai package to simplify authentication.
 from databricks.sdk import WorkspaceClient
 from databricks_openai import DatabricksOpenAI
 

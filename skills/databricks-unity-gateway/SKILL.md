@@ -1,6 +1,6 @@
 ---
 name: databricks-unity-gateway
-description: "Use for requests involving pay-per-token foundation models, including Unity Gateway (fka Unity AI Gateway) model services, model provider services, MCP services, `system.ai` services, three-part Unity Catalog service names, or migration from legacy AI Gateway. Also use when a workload with Model Serving `CAN_QUERY` fails to access a Unity Gateway service. Not for legacy AI Gateway configuration attached to Model Serving endpoints; use databricks-model-serving for that."
+description: "Use for requests involving pay-per-token foundation models, including Unity Gateway (may also be referred to as Unity AI Gateway) model services, model provider services, MCP services, `system.ai` services, three-part Unity Catalog service names, or migration from legacy AI Gateway. Also use when a workload with Model Serving `CAN_QUERY` fails to access a Unity Gateway service. Not for legacy AI Gateway configuration attached to Model Serving endpoints; use databricks-model-serving for that."
 compatibility: Requires databricks CLI (>= v1.11.0)
 metadata:
   version: "0.1.0"
@@ -18,7 +18,7 @@ command group keeps the earlier product name: `databricks ai-gateway --help`.
 
 | Request | Use |
 |---|---|
-| Unity Gateway or Unity AI Gateway model service, MCP service, or model provider service | This skill and `databricks ai-gateway` |
+| Unity Gateway model service, MCP service, or model provider service | This skill and `databricks ai-gateway` |
 | AI Gateway configuration on a Model Serving endpoint, including `put-ai-gateway` | `databricks-model-serving` and `databricks serving-endpoints` |
 | Lakeflow Connect ingestion gateway | `databricks-lakeflow-connect` |
 

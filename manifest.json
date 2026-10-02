@@ -499,7 +499,7 @@
       "version": "0.3.0"
     },
     "databricks-unity-gateway": {
-      "description": "Use for requests involving pay-per-token foundation models, including Unity Gateway (fka Unity AI Gateway) model services, model provider services, MCP services, `system.ai` services, three-part Un...",
+      "description": "Use for requests involving pay-per-token foundation models, including Unity Gateway (may also be referred to as Unity AI Gateway) model services, model provider services, MCP services, `system.ai`...",
       "files": [
         "SKILL.md",
         "agents/openai.yaml",
